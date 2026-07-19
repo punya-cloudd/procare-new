@@ -19,7 +19,7 @@
                 <div class="col-12">
                     <div class="card shadow-sm border-0"
                         style="background: linear-gradient(135deg,#1572E8,#48ABF7); color:white;">
-                        <div class="card-body d-flex justify-content-between align-items-center flex-wrap">
+                        <div class="card-body d-flex flex-column flex-lg-row justify-content-between align-items-lg-center">
 
                             <div>
                                 <h2 class="fw-bold mb-2">
@@ -38,7 +38,7 @@
                                 </small>
                             </div>
 
-                            <div class="text-end mt-3 mt-md-0">
+                            <div class="text-start text-lg-end mt-3 mt-lg-0">
                                 <h5>{{ now()->translatedFormat('l') }}</h5>
                                 <h3>{{ now()->translatedFormat('d F Y') }}</h3>
                             </div>
@@ -234,168 +234,184 @@
                     <div class="card">
 
                         <div class="card-header">
-                            <div class="card-title">
-                                Monitoring Harian Peserta Prolanis
+                            <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center">
+
+                                <div>
+                                    <h4 class="card-title mb-1">
+                                        Monitoring Harian Peserta Prolanis
+                                    </h4>
+
+                                    <small class="text-muted">
+                                        Status pemeriksaan, monitoring makanan, dan aktivitas fisik peserta
+                                    </small>
+                                </div>
+
+                                <div class="mt-3 mt-lg-0">
+                                    <form method="GET" action="{{ route('backend.dashboard') }}">
+                                        <input type="date" name="tanggal" value="{{ $tanggal }}"
+                                            class="form-control" onchange="this.form.submit()">
+                                    </form>
+                                </div>
+
                             </div>
-                            <small class="text-muted">
-                                Status pemeriksaan, monitoring makanan, dan aktivitas fisik peserta hari ini
-                            </small>
                         </div>
 
-                        <div class="card-body">
+                        <div class="card-body p-2 p-md-3">
 
-                            <table class="table table-bordered">
-                                <thead class="table-light">
-                                    <tr>
+                            <div class="table-responsive">
 
-                                        <th width="5%">No</th>
-
-                                        <th>Nama Peserta</th>
-
-                                        <th>Jenis Penyakit</th>
-
-                                        <th class="text-center">
-                                            Monitoring Makanan
-                                        </th>
-
-                                        <th class="text-center">
-                                            Aktivitas Fisik
-                                        </th>
-
-                                        <th class="text-center">
-                                            Status
-                                        </th>
-
-                                    </tr>
-                                </thead>
-
-                                <tbody>
-
-                                    @forelse($monitoringHarian as $row)
+                                <table class="table table-bordered table-hover align-middle mb-0">
+                                    <thead class="table-light">
                                         <tr>
 
-                                            <td>{{ $loop->iteration }}</td>
+                                            <th width="5%">No</th>
 
-                                            <td>
-                                                {{ $row->nama }}
-                                            </td>
+                                            <th>Nama Peserta</th>
 
-                                            <td>
-                                                {{ $row->jenis_penyakit ?? '-' }}
-                                            </td>
+                                            <th>Jenis Penyakit</th>
 
-                                            <td class="text-center">
+                                            <th class="text-center">
+                                                Monitoring Makanan
+                                            </th>
 
-                                                @if ($row->makanan)
-                                                    <span class="badge bg-success">
-                                                        <i class="fa fa-check"></i> Sudah
-                                                    </span>
-                                                @else
-                                                    <a href="{{ route('monitoring_makanan.create', ['peserta' => $row->id]) }}"
-                                                        class="badge bg-danger text-decoration-none">
-                                                        <i class="fa fa-plus-circle"></i> Belum
-                                                    </a>
-                                                @endif
+                                            <th class="text-center">
+                                                Aktivitas Fisik
+                                            </th>
 
-                                            </td>
-
-                                            <td class="text-center">
-
-                                                @if ($row->aktivitas)
-                                                    <span class="badge bg-success">
-                                                        <i class="fa fa-check"></i> Sudah
-                                                    </span>
-                                                @else
-                                                    <a href="{{ route('bouchard.create', ['peserta' => $row->id]) }}"
-                                                        class="badge bg-danger text-decoration-none">
-                                                        <i class="fa fa-plus-circle"></i> Belum
-                                                    </a>
-                                                @endif
-
-                                            </td>
-
-                                            <td class="text-center">
-
-                                                @if ($row->status == 'Lengkap')
-                                                    <span class="badge bg-success">
-                                                        Lengkap
-                                                    </span>
-                                                @elseif($row->status == 'Belum Lengkap')
-                                                    <span class="badge bg-warning text-dark">
-                                                        Belum Lengkap
-                                                    </span>
-                                                @else
-                                                    <span class="badge bg-danger">
-                                                        Belum Dipantau
-                                                    </span>
-                                                @endif
-
-                                            </td>
+                                            <th class="text-center">
+                                                Status
+                                            </th>
 
                                         </tr>
+                                    </thead>
 
-                                    @empty
+                                    <tbody>
 
-                                        <tr>
+                                        @forelse($monitoringHarian as $row)
+                                            <tr>
 
-                                            <td colspan="7" class="text-center">
-                                                Belum ada data monitoring hari ini.
-                                            </td>
+                                                <td>{{ $loop->iteration }}</td>
 
-                                        </tr>
-                                    @endforelse
+                                                <td>
+                                                    {{ $row->nama }}
+                                                </td>
 
-                                </tbody>
+                                                <td>
+                                                    {{ $row->jenis_penyakit ?? '-' }}
+                                                </td>
 
-                            </table>
+                                                <td class="text-center">
+
+                                                    @if ($row->makanan)
+                                                        <span class="badge bg-success">
+                                                            <i class="fa fa-check"></i> Sudah
+                                                        </span>
+                                                    @else
+                                                        <a href="{{ route('monitoring_makanan.create', ['peserta_id' => $row->id]) }}"
+                                                            class="badge bg-danger text-decoration-none">
+                                                            <i class="fa fa-plus-circle"></i> Belum
+                                                        </a>
+                                                    @endif
+
+                                                </td>
+
+                                                <td class="text-center">
+
+                                                    @if ($row->aktivitas)
+                                                        <span class="badge bg-success">
+                                                            <i class="fa fa-check"></i> Sudah
+                                                        </span>
+                                                    @else
+                                                        <a href="{{ route('bouchard.create', ['peserta_id' => $row->id]) }}"
+                                                            class="badge bg-danger text-decoration-none">
+                                                            <i class="fa fa-plus-circle"></i> Belum
+                                                        </a>
+                                                    @endif
+
+                                                </td>
+
+                                                <td class="text-center">
+
+                                                    @if ($row->status == 'Lengkap')
+                                                        <span class="badge bg-success">
+                                                            Lengkap
+                                                        </span>
+                                                    @elseif($row->status == 'Belum Lengkap')
+                                                        <span class="badge bg-warning text-dark">
+                                                            Belum Lengkap
+                                                        </span>
+                                                    @else
+                                                        <span class="badge bg-danger">
+                                                            Belum Dipantau
+                                                        </span>
+                                                    @endif
+
+                                                </td>
+
+                                            </tr>
+
+                                        @empty
+
+                                            <tr>
+
+                                                <td colspan="7" class="text-center">
+                                                    Belum ada data monitoring hari ini.
+                                                </td>
+
+                                            </tr>
+                                        @endforelse
+
+                                    </tbody>
+
+                                </table>
+
+                            </div>
 
                         </div>
-
                     </div>
+
                 </div>
 
             </div>
-
         </div>
-    </div>
 
-@endsection
+    @endsection
 
-@section('script')
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    @section('script')
+        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-    <script>
-        // PIE CHART (FIX SIZE)
-        new Chart(document.getElementById('pieChart'), {
-            type: 'doughnut',
-            data: {
-                labels: @json($risikoLabels),
-                datasets: [{
-                    data: @json($risikoData),
-                    backgroundColor: ['#2ecc71', '#f39c12', '#e74c3c']
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false
-            }
-        });
+        <script>
+            // PIE CHART (FIX SIZE)
+            new Chart(document.getElementById('pieChart'), {
+                type: 'doughnut',
+                data: {
+                    labels: @json($risikoLabels),
+                    datasets: [{
+                        data: @json($risikoData),
+                        backgroundColor: ['#2ecc71', '#f39c12', '#e74c3c']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false
+                }
+            });
 
-        // BAR CHART
-        new Chart(document.getElementById('barChart'), {
-            type: 'bar',
-            data: {
-                labels: @json($labelTanggal),
-                datasets: [{
-                    label: 'Pemeriksaan',
-                    data: @json($dataJumlah),
-                    backgroundColor: '#1572E8'
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false
-            }
-        });
-    </script>
-@endsection
+            // BAR CHART
+            new Chart(document.getElementById('barChart'), {
+                type: 'bar',
+                data: {
+                    labels: @json($labelTanggal),
+                    datasets: [{
+                        label: 'Pemeriksaan',
+                        data: @json($dataJumlah),
+                        backgroundColor: '#1572E8'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false
+                }
+            });
+        </script>
+    @endsection

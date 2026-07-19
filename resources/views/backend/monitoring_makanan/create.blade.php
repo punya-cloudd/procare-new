@@ -93,23 +93,34 @@
                                     <i class="fa fa-arrow-left"></i>
                                     Kembali
                                 </a> --}}
-                                <div class="d-flex justify-content-between align-items-center mt-4">
-                                    <a href="{{ route('monitoring_makanan.index') }}" class="btn text-white shadow-sm px-4 py-2"
-                                        style="background:linear-gradient(to right,#667eea,#764ba2);border:none;font-weight:500;">
-                                        <i class="fas fa-arrow-left me-2"></i>
-                                        Kembali
-                                    </a>
-                                    <div>
-                                        <button type="reset" class="btn btn-light border shadow-sm px-4 py-2 me-2">
-                                            <i class="fas fa-undo-alt me-2"></i>
-                                            Reset
-                                        </button>
-                                        <button type="submit" class="btn text-white shadow-sm px-4 py-2"
-                                            style="background:linear-gradient(to right,#36d1dc,#5b86e5);border:none;font-weight:500;">
-                                            <i class="fas fa-save me-2"></i>
-                                            Simpan
-                                        </button>
+                                <div class="row mt-4 g-2 align-items-center">
+
+                                    <div class="col-12 col-md-4">
+                                        <a href="{{ route('monitoring_makanan.index') }}"
+                                            class="btn text-white shadow-sm w-100"
+                                            style="background:linear-gradient(to right,#667eea,#764ba2);border:none;font-weight:500;">
+                                            <i class="fas fa-arrow-left me-2"></i>
+                                            Kembali
+                                        </a>
                                     </div>
+
+                                    <div class="col-12 col-md-8">
+                                        <div class="d-grid d-md-flex justify-content-md-end gap-2">
+
+                                            <button type="reset" class="btn btn-light border shadow-sm">
+                                                <i class="fas fa-undo-alt me-2"></i>
+                                                Reset
+                                            </button>
+
+                                            <button type="submit" class="btn text-white shadow-sm"
+                                                style="background:linear-gradient(to right,#36d1dc,#5b86e5);border:none;font-weight:500;">
+                                                <i class="fas fa-save me-2"></i>
+                                                Simpan
+                                            </button>
+
+                                        </div>
+                                    </div>
+
                                 </div>
 
                                 {{-- <div

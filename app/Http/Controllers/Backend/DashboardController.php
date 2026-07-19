@@ -11,20 +11,18 @@ use App\Models\MonitoringMakanan;
 use App\Models\Bouchard;
 use App\Models\Dokter;
 use App\Models\JenisPenyakit;
+use Illuminate\Support\Facades\Auth;
 
 use Carbon\Carbon;
 
 class DashboardController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-
-        /*
-        |--------------------------------------------------------------------------
-        | CARD STATISTIK
-        |--------------------------------------------------------------------------
-        */
-
+        // CARD STATISTIK
+        $tanggal = $request->tanggal
+            ? Carbon::parse($request->tanggal)->toDateString()
+            : Carbon::today()->toDateString();
         // Total Peserta
         $totalPeserta = Peserta::count();
 
@@ -97,46 +95,49 @@ class DashboardController extends Controller
             return $perHari[$tgl] ?? 0;
         })->toArray();
 
-        /*
-        |--------------------------------------------------------------------------
-        | MONITORING HARIAN PESERTA
-        |--------------------------------------------------------------------------
-        */
+        
+// MONITORING HARIAN PESERTA
 
-        $today = Carbon::today()->toDateString();
-        $monitoringHarian = Peserta::with('jenisPenyakit')
-            ->orderBy('nama')
-            ->get()
-            ->map(function ($peserta) use ($today) {
+$today = $tanggal;
 
-                $makanan = MonitoringMakanan::where('peserta_id', $peserta->id)
-                    ->whereDate('tanggal', $today)
-                    ->exists();
+// Query peserta
+$queryPeserta = Peserta::with('jenisPenyakit');
 
-                $aktivitas = Bouchard::where('peserta_id', $peserta->id)
-                    ->whereDate('tanggal', $today)
-                    ->exists();
+// Jika login sebagai peserta, tampilkan hanya dirinya sendiri
+if (Auth::user()->peserta_id != null) {
+    $queryPeserta->where('id', Auth::user()->peserta_id);
+}
 
-                if ($makanan && $aktivitas) {
+$monitoringHarian = $queryPeserta
+    ->orderBy('nama')
+    ->get()
+    ->map(function ($peserta) use ($today) {
 
-                    $status = 'Lengkap';
-                } elseif ($makanan || $aktivitas) {
+        $makanan = MonitoringMakanan::where('peserta_id', $peserta->id)
+            ->whereDate('tanggal', $today)
+            ->exists();
 
-                    $status = 'Belum Lengkap';
-                } else {
+        $aktivitas = Bouchard::where('peserta_id', $peserta->id)
+            ->whereDate('tanggal', $today)
+            ->exists();
 
-                    $status = 'Belum Dipantau';
-                }
+        if ($makanan && $aktivitas) {
+            $status = 'Lengkap';
+        } elseif ($makanan || $aktivitas) {
+            $status = 'Belum Lengkap';
+        } else {
+            $status = 'Belum Dipantau';
+        }
 
-                return (object)[
-                    'id' => $peserta->id,
-                    'nama' => $peserta->nama,
-                    'jenis_penyakit' => optional($peserta->jenisPenyakit)->nama_penyakit,
-                    'makanan' => $makanan,
-                    'aktivitas' => $aktivitas,
-                    'status' => $status,
-                ];
-            });
+        return (object)[
+            'id' => $peserta->id,
+            'nama' => $peserta->nama,
+            'jenis_penyakit' => optional($peserta->jenisPenyakit)->nama_penyakit,
+            'makanan' => $makanan,
+            'aktivitas' => $aktivitas,
+            'status' => $status,
+        ];
+    });
 
         /*
         |--------------------------------------------------------------------------
@@ -164,7 +165,10 @@ class DashboardController extends Controller
             'dataJumlah',
 
             // Monitoring Harian
-            'monitoringHarian'
+            'monitoringHarian',
+
+            // Tanggal monitoring
+            'tanggal'
 
         ));
     }
