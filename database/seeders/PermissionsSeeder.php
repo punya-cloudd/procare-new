@@ -50,6 +50,12 @@ class PermissionsSeeder extends Seeder
             'jenis-penyakit-edit',
             'jenis-penyakit-delete',
 
+            'master-makanan-list',
+            'master-makanan-create',
+            'master-makanan-edit',
+            'master-makanan-delete',
+
+
             'peserta-list',
             'peserta-create',
             'peserta-edit',

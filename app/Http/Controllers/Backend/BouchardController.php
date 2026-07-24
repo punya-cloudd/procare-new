@@ -17,103 +17,72 @@ use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 class BouchardController extends Controller
 {
-
     public function index(Request $request)
     {
         if ($request->ajax()) {
-
             $query = Peserta::with([
                 'jenisPenyakit'
             ])
                 ->whereHas('bouchard')
                 ->withCount('bouchard');
-
             if (Auth::user()->hasRole('Peserta')) {
                 $query->where('id', Auth::user()->peserta_id);
             }
-
             $data = $query->get();
-
             return DataTables::of($data)
-
                 ->addIndexColumn()
-
                 ->addColumn('nama', function ($row) {
-
                     return '
                         <a href="' . route('bouchard.history', $row->id) . '"
                             class="fw-bold text-primary text-decoration-none">
-
                             <i class="fa fa-user-circle me-1"></i>
-
                             ' . $row->nama . '
-
                         </a>
                     ';
                 })
-
                 ->addColumn('penyakit', function ($row) {
-
                     return $row->jenisPenyakit->nama_penyakit ?? '-';
                 })
-
                 ->addColumn('jumlah', function ($row) {
-
                     return $row->bouchard_count . ' Kali';
                 })
-
                 ->addColumn('terakhir', function ($row) {
-
                     $last = Bouchard::where('peserta_id', $row->id)
                         ->latest('tanggal')
                         ->first();
-
                     return $last
                         ? $last->tanggal->format('d-m-Y')
                         : '-';
                 })
-
                 ->addColumn('aktivitas', function ($row) {
-
                     $last = Bouchard::where('peserta_id', $row->id)
                         ->latest('tanggal')
                         ->first();
-
                     if (!$last) {
                         return '-';
                     }
-
                     $badge = 'success';
-
                     if ($last->kategori == 'Berat') {
                         $badge = 'danger';
                     } elseif ($last->kategori == 'Sedang') {
                         $badge = 'warning text-dark';
                     }
-
                     return '
                         <span class="badge bg-' . $badge . '">
                             ' . $last->kategori . '
                         </span>
                     ';
                 })
-
                 ->addColumn('petugas', function ($row) {
-
                     $last = Bouchard::with('petugas')
                         ->where('peserta_id', $row->id)
                         ->latest('tanggal')
                         ->first();
-
                     return $last->petugas->nama ?? '-';
                 })
-
                 ->addColumn('action', function ($row) {
-
                     return '
-
                     <div class="dropdown">
-
                         <button
                             class="btn btn-link p-0 text-primary"
                             type="button"
@@ -162,33 +131,22 @@ class BouchardController extends Controller
     public function create(Request $request)
     {
         $petugas = Petugas::orderBy('nama')->get();
-
         if (auth()->user()->hasRole('Peserta')) {
-
             $peserta = Peserta::where('id', auth()->user()->peserta_id)->get();
-
             $selectedPeserta = auth()->user()->peserta_id;
         } else {
-
             $peserta = Peserta::orderBy('nama')->get();
-
             $selectedPeserta = $request->peserta_id;
         }
 
-        return view(
-            'backend.bouchard.create',
-            compact(
-                'peserta',
-                'petugas',
-                'selectedPeserta'
-            )
-        );
+        // MASTER AKTIVITAS BOUCHARD
+        $aktivitas = BouchardDetail::aktivitasList();
+        return view('backend.bouchard.create', compact('peserta', 'petugas', 'selectedPeserta', 'aktivitas'));
     }
 
 
     public function store(Request $request)
     {
-
         if (auth()->user()->hasRole('Peserta')) {
             $request->merge([
                 'peserta_id' => auth()->user()->peserta_id
@@ -196,21 +154,22 @@ class BouchardController extends Controller
         }
 
         $request->validate([
+            'peserta_id'   => 'required|exists:peserta,id',
+            'petugas_id'   => 'nullable|exists:petugas,id',
+            'tanggal'      => 'required|date',
+            'berat_badan'  => 'required|numeric|min:1',
 
-            'peserta_id' => 'required',
-
-            'petugas_id' => 'required',
-
-            'tanggal' => 'required|date',
-
+            'jam.*' => 'nullable|integer|min:0|max:23',
+            'm00.*' => 'nullable|string|max:10',
+            'm15.*' => 'nullable|string|max:10',
+            'm30.*' => 'nullable|string|max:10',
+            'm45.*' => 'nullable|string|max:10',
         ]);
 
         $cek = Bouchard::where('peserta_id', $request->peserta_id)
             ->whereDate('tanggal', $request->tanggal)
             ->first();
-
         if ($cek) {
-
             return back()
                 ->withInput()
                 ->with(
@@ -218,69 +177,35 @@ class BouchardController extends Controller
                     'Kuisioner Bouchard pada tanggal tersebut sudah ada.'
                 );
         }
-
         DB::beginTransaction();
-
         try {
-
             $bouchard = Bouchard::create([
-
                 'peserta_id' => $request->peserta_id,
-
                 'petugas_id' => $request->petugas_id,
-
                 'tanggal' => $request->tanggal,
-
                 'berat_badan' => $request->berat_badan,
-
                 'catatan' => $request->catatan,
-
                 'created_by' => Auth::id(),
-
             ]);
 
             if ($request->has('jam')) {
-
                 foreach ($request->jam as $i => $jam) {
-
                     BouchardDetail::create([
-
                         'bouchard_id' => $bouchard->id,
-
                         'jam' => $jam,
-
-                        'm00' => $request->m00[$i],
-
-                        'm15' => $request->m15[$i],
-
-                        'm30' => $request->m30[$i],
-
-                        'm45' => $request->m45[$i],
-
+                        'm00' => $request->m00[$i] ?? null,
+                        'm15' => $request->m15[$i] ?? null,
+                        'm30' => $request->m30[$i] ?? null,
+                        'm45' => $request->m45[$i] ?? null,
                     ]);
                 }
             }
-
             $this->hitungHasil($bouchard->id);
-
             DB::commit();
-
-            return redirect()
-                ->route('bouchard.index')
-                ->with(
-                    'success',
-                    'Kuisioner Bouchard berhasil disimpan.'
-                );
+            return redirect()->route('bouchard.index')->with('success', 'Kuisioner Bouchard berhasil disimpan.');
         } catch (\Exception $e) {
-
             DB::rollBack();
-
-            return back()
-                ->withInput()
-                ->with(
-                    'error',
-                    $e->getMessage()
-                );
+            return back()->withInput()->with('error', $e->getMessage());
         }
     }
 
@@ -291,18 +216,16 @@ class BouchardController extends Controller
             'petugas',
             'detail'
         ])->findOrFail($id);
-
         if (
             Auth::user()->hasRole('Peserta') &&
             $bouchard->peserta_id != Auth::user()->peserta_id
         ) {
             abort(403);
         }
+        // Ambil master aktivitas dari Model
+        $aktivitas = BouchardDetail::aktivitasList();
 
-        return view(
-            'backend.bouchard.show',
-            compact('bouchard')
-        );
+        return view('backend.bouchard.show', compact('bouchard', 'aktivitas'));
     }
 
 
@@ -314,6 +237,8 @@ class BouchardController extends Controller
             'petugas'
         ])->findOrFail($id);
 
+
+        // Proteksi peserta agar hanya bisa edit miliknya sendiri
         if (
             Auth::user()->hasRole('Peserta') &&
             $bouchard->peserta_id != Auth::user()->peserta_id
@@ -321,16 +246,36 @@ class BouchardController extends Controller
             abort(403);
         }
 
-        $peserta = Peserta::orderBy('nama')->get();
 
+        // Jika role Peserta hanya tampilkan dirinya sendiri
+        if (Auth::user()->hasRole('Peserta')) {
+
+            $peserta = Peserta::where(
+                'id',
+                Auth::user()->peserta_id
+            )->get();
+        } else {
+
+            // Admin / petugas bisa memilih semua peserta
+            $peserta = Peserta::orderBy('nama')->get();
+        }
+
+
+        // Master petugas
         $petugas = Petugas::orderBy('nama')->get();
+
+
+        // Master aktivitas Bouchard
+        $aktivitas = BouchardDetail::aktivitasList();
+
 
         return view(
             'backend.bouchard.edit',
             compact(
                 'bouchard',
                 'peserta',
-                'petugas'
+                'petugas',
+                'aktivitas'
             )
         );
     }
@@ -338,21 +283,59 @@ class BouchardController extends Controller
 
     public function update(Request $request, $id)
     {
+        $bouchard = Bouchard::findOrFail($id);
+        /*
+    |--------------------------------------------------------------------------
+    | PROTEKSI ROLE PESERTA
+    |--------------------------------------------------------------------------
+    */
+        if (
+            Auth::user()->hasRole('Peserta') &&
+            $bouchard->peserta_id != Auth::user()->peserta_id
+        ) {
+            abort(403);
+        }
 
+        /*
+    |--------------------------------------------------------------------------
+    | PESERTA TIDAK BOLEH PINDAH DATA
+    |--------------------------------------------------------------------------
+    */
+        if (Auth::user()->hasRole('Peserta')) {
+            $request->merge([
+                'peserta_id' => Auth::user()->peserta_id
+            ]);
+        }
+
+        /*
+    |--------------------------------------------------------------------------
+    | VALIDASI
+    |--------------------------------------------------------------------------
+    */
         $request->validate([
-
-            'peserta_id' => 'required',
-
-            'petugas_id' => 'required',
-
+            'peserta_id' => 'required|exists:peserta,id',
+            'petugas_id' => 'nullable|exists:petugas,id',
             'tanggal' => 'required|date',
+            'berat_badan' => 'required|numeric|min:1',
+            'jam.*' => 'nullable|integer|min:0|max:23',
 
+            'm00.*' => 'nullable|string|max:10',
+            'm15.*' => 'nullable|string|max:10',
+            'm30.*' => 'nullable|string|max:10',
+            'm45.*' => 'nullable|string|max:10',
         ]);
+
+        /*
+    |--------------------------------------------------------------------------
+    | CEK DUPLIKAT TANGGAL
+    |--------------------------------------------------------------------------
+    */
 
         $cek = Bouchard::where('peserta_id', $request->peserta_id)
             ->whereDate('tanggal', $request->tanggal)
             ->where('id', '!=', $id)
             ->first();
+
 
         if ($cek) {
 
@@ -364,11 +347,18 @@ class BouchardController extends Controller
                 );
         }
 
+
+
         DB::beginTransaction();
 
         try {
 
-            $bouchard = Bouchard::findOrFail($id);
+
+            /*
+        |--------------------------------------------------------------------------
+        | UPDATE HEADER
+        |--------------------------------------------------------------------------
+        */
 
             $bouchard->update([
 
@@ -386,14 +376,32 @@ class BouchardController extends Controller
 
             ]);
 
+
+
+            /*
+        |--------------------------------------------------------------------------
+        | HAPUS DETAIL LAMA
+        |--------------------------------------------------------------------------
+        */
+
             BouchardDetail::where(
                 'bouchard_id',
                 $bouchard->id
             )->delete();
 
+
+
+            /*
+        |--------------------------------------------------------------------------
+        | SIMPAN DETAIL BARU
+        |--------------------------------------------------------------------------
+        */
+
             if ($request->has('jam')) {
 
+
                 foreach ($request->jam as $i => $jam) {
+
 
                     BouchardDetail::create([
 
@@ -401,21 +409,29 @@ class BouchardController extends Controller
 
                         'jam' => $jam,
 
-                        'm00' => $request->m00[$i],
-
-                        'm15' => $request->m15[$i],
-
-                        'm30' => $request->m30[$i],
-
-                        'm45' => $request->m45[$i],
+                        'm00' => $request->m00[$i] ?? null,
+                        'm15' => $request->m15[$i] ?? null,
+                        'm30' => $request->m30[$i] ?? null,
+                        'm45' => $request->m45[$i] ?? null,
 
                     ]);
                 }
             }
 
+
+
+            /*
+        |--------------------------------------------------------------------------
+        | HITUNG ULANG HASIL
+        |--------------------------------------------------------------------------
+        */
+
             $this->hitungHasil($bouchard->id);
 
+
+
             DB::commit();
+
 
             return redirect()
                 ->route('bouchard.index')
@@ -425,7 +441,9 @@ class BouchardController extends Controller
                 );
         } catch (\Exception $e) {
 
+
             DB::rollBack();
+
 
             return back()
                 ->withInput()
@@ -436,54 +454,58 @@ class BouchardController extends Controller
         }
     }
 
-
     public function destroy($id)
     {
+        // PESERTA TIDAK BOLEH HAPUS
         if (Auth::user()->hasRole('Peserta')) {
             abort(403);
         }
+        DB::beginTransaction();
+        try {
+            $bouchard = Bouchard::findOrFail($id);
 
-        $bouchard = Bouchard::findOrFail($id);
+            // HAPUS DETAIL TERLEBIH DAHULU
+            BouchardDetail::where(
+                'bouchard_id',
+                $bouchard->id
+            )->delete();
 
-        $bouchard->delete();
-
-        return response()->json([
-            'success' => true
-        ]);
-    }
-
-
-    public function searchPeserta(Request $request)
-    {
-        $q = $request->q;
-
-        return Peserta::where('nama', 'like', "%{$q}%")
-            ->orWhere('no_bpjs', 'like', "%{$q}%")
-            ->orWhere('no_rm', 'like', "%{$q}%")
-            ->limit(10)
-            ->get([
-                'id',
-                'nama',
-                'no_rm',
-                'no_bpjs'
+            // HAPUS HEADER
+            $bouchard->delete();
+            DB::commit();
+            return response()->json([
+                'success' => true,
+                'message' => 'Data Bouchard berhasil dihapus.'
             ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage()
+            ], 500);
+        }
     }
 
 
     public function searchPetugas(Request $request)
     {
-        $q = $request->q;
+        $query = Petugas::query();
 
-        return Petugas::where('nama', 'like', "%{$q}%")
-            ->orWhere('nip', 'like', "%{$q}%")
-            ->limit(10)
-            ->get([
-                'id',
-                'nama',
-                'nip'
-            ]);
+        if ($request->filled('q')) {
+            $q = $request->q;
+
+            $query->where(function ($x) use ($q) {
+                $x->where('nama', 'like', "%{$q}%")
+                    ->orWhere('nip', 'like', "%{$q}%");
+            });
+        }
+
+        return $query->limit(10)->get([
+            'id',
+            'nama',
+            'nip'
+        ]);
     }
-
 
     public function history($peserta)
     {
@@ -512,19 +534,57 @@ class BouchardController extends Controller
 
     public function exportPdf($id)
     {
+
+        /*
+    |--------------------------------------------------------------------------
+    | AMBIL DATA BOUCHARD
+    |--------------------------------------------------------------------------
+    */
+
         $bouchard = Bouchard::with([
             'peserta',
             'petugas',
             'detail'
         ])->findOrFail($id);
 
+
+
+        /*
+    |--------------------------------------------------------------------------
+    | PROTEKSI PESERTA
+    |--------------------------------------------------------------------------
+    */
+
+        if (
+            Auth::user()->hasRole('Peserta') &&
+            $bouchard->peserta_id != Auth::user()->peserta_id
+        ) {
+
+            abort(403);
+        }
+
+
+
+        /*
+    |--------------------------------------------------------------------------
+    | GENERATE PDF
+    |--------------------------------------------------------------------------
+    */
+
         $pdf = Pdf::loadView(
             'backend.bouchard.pdf',
             compact('bouchard')
-        )->setPaper('A4', 'landscape');
+        )
+            ->setPaper('A4', 'landscape');
+
+
 
         return $pdf->download(
-            'Kuisioner_Bouchard_' . $bouchard->peserta->nama . '.pdf'
+
+            'Kuisioner_Bouchard_' .
+                ($bouchard->peserta->nama ?? 'Peserta') .
+                '.pdf'
+
         );
     }
 
@@ -899,99 +959,61 @@ class BouchardController extends Controller
     private function hitungHasil($bouchardId)
     {
         $bouchard = Bouchard::with('detail')->findOrFail($bouchardId);
+        $detailModel = new BouchardDetail();
 
-        $totalKalori = 0;
+        $totalEnergiKcalKg = 0; // Total energi per kg (penjumlahan langsung nilai kategori Bouchard)
+        $totalMET = 0;
+        $slotTerisi = 0;
 
         foreach ($bouchard->detail as $detail) {
-
             foreach (
                 [
                     $detail->m00,
                     $detail->m15,
                     $detail->m30,
                     $detail->m45,
-                ] as $kategori
+                ] as $aktivitas
             ) {
-
-                if (!$kategori) {
+                if (empty($aktivitas)) {
                     continue;
                 }
 
-                $energi = $this->getEnergiKategori($kategori);
+                $energi = $detailModel->energi($aktivitas);
 
-                $totalKalori += $energi * $bouchard->berat_badan;
+                // 1. Nilai energi Bouchard sudah dalam unit kcal/kg/15m -> Dijumlahkan langsung
+                $totalEnergiKcalKg += $energi;
+
+                // 2. Konversi ke MET per slot (1 MET = 0.25 kcal/kg/15m)
+                $totalMET += ($energi / 0.25);
+
+                $slotTerisi++;
             }
         }
 
+        // Total Kalori (EE/TEE) = Total kcal/kg * Berat Badan
+        $totalKalori = $totalEnergiKcalKg * $bouchard->berat_badan;
+
+        // Rata-rata MET
+        $met = $slotTerisi > 0 ? round($totalMET / $slotTerisi, 2) : 0;
+        
+        // PAL (Physical Activity Level) setara dengan rata-rata MET harian
+        $pal = $met;
+
+        // Klasifikasi Standar PAL (WHO / Bouchard)
+        if ($pal < 1.40) {
+            $kategori = 'Sangat Ringan';
+        } elseif ($pal < 1.70) {
+            $kategori = 'Ringan';
+        } elseif ($pal < 2.00) {
+            $kategori = 'Sedang';
+        } else {
+            $kategori = 'Berat';
+        }
+
+        // Simpan Hasil ke Database
         $bouchard->update([
-
             'total_kalori' => round($totalKalori, 2),
-
-            'kategori' => $this->getKategoriAktivitas($totalKalori),
-
+            'kategori'     => $kategori,
         ]);
-    }
-
-
-    /*
-    |--------------------------------------------------------------------------
-    | KONVERSI KATEGORI BOUCHARD
-    |--------------------------------------------------------------------------
-    */
-
-    private function getEnergiKategori($kategori)
-    {
-        switch ($kategori) {
-
-            case 1:
-                return 0.26;
-
-            case 2:
-                return 0.30;
-
-            case 3:
-                return 0.38;
-
-            case 4:
-                return 0.57;
-
-            case 5:
-                return 0.83;
-
-            case 6:
-                return 1.00;
-
-            case 7:
-                return 1.20;
-
-            case 8:
-                return 1.40;
-
-            case 9:
-                return 1.95;
-
-            default:
-                return 0;
-        }
-    }
-
-
-    /*
-    |--------------------------------------------------------------------------
-    | KATEGORI AKTIVITAS
-    |--------------------------------------------------------------------------
-    */
-
-    private function getKategoriAktivitas($totalKalori)
-    {
-        if ($totalKalori < 1800) {
-            return 'Ringan';
-        }
-
-        if ($totalKalori < 2500) {
-            return 'Sedang';
-        }
-
-        return 'Berat';
     }
 }

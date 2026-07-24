@@ -7,6 +7,7 @@ use App\Models\MonitoringMakanan;
 use App\Models\MonitoringMakananDetail;
 use App\Models\Peserta;
 use App\Models\Petugas;
+use App\Models\MasterMakanan;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -20,7 +21,9 @@ use PhpOffice\PhpSpreadsheet\Style\Fill;
 
 class MonitoringMakananController extends Controller
 {
-
+    /**
+     * Menampilkan daftar monitoring makanan
+     */
     public function index(Request $request)
     {
         if ($request->ajax()) {
@@ -28,18 +31,20 @@ class MonitoringMakananController extends Controller
                 ->whereHas('monitoringMakanan')
                 ->withCount('monitoringMakanan');
 
+            // Jika role Peserta, hanya lihat data milik sendiri
             if (auth()->user()->hasRole('Peserta')) {
                 $query->where('id', auth()->user()->peserta_id);
             }
 
             $data = $query->get();
+
             return DataTables::of($data)
                 ->addIndexColumn()
                 ->addColumn('nama', function ($row) {
                     return '
-                        <a href="' . route('monitoring_makanan.history', $row->id) . '"class="fw-bold text-primary text-decoration-none">
+                        <a href="' . route('monitoring_makanan.history', $row->id) . '" class="fw-bold text-primary text-decoration-none">
                             <i class="fa fa-user-circle me-1"></i>
-                            ' . $row->nama . '
+                            ' . e($row->nama) . '
                         </a>
                     ';
                 })
@@ -68,15 +73,12 @@ class MonitoringMakananController extends Controller
                     if (!$last) {
                         return '-';
                     }
-                    $warna = 'success';
-                    if ($last->total_kalori < 1800) {
-                        $warna = 'warning text-dark';
-                    } elseif ($last->total_kalori > 2200) {
-                        $warna = 'danger';
-                    }
+                    
+                    $badgeClass = $this->getBadgeKalori($last->total_kalori);
+
                     return '
-                        <span class="badge bg-' . $warna . '">
-                            ' . $last->total_kalori . ' Kkal
+                        <span class="badge bg-' . $badgeClass . '">
+                            ' . number_format($last->total_kalori, 0) . ' Kkal
                         </span>
                     ';
                 })
@@ -85,7 +87,7 @@ class MonitoringMakananController extends Controller
                         ->where('peserta_id', $row->id)
                         ->latest('tanggal')
                         ->first();
-                    return $last->petugas->nama ?? '-';
+                    return $last->petugas->nama ?? 'Mandiri (Pasien)';
                 })
                 ->addColumn('action', function ($row) {
                     return '
@@ -110,12 +112,21 @@ class MonitoringMakananController extends Controller
                 ->rawColumns(['nama', 'kalori', 'action'])
                 ->make(true);
         }
+
         return view('backend.monitoring_makanan.index');
     }
 
+    /**
+     * Form Tambah Monitoring
+     */
     public function create(Request $request)
     {
         $petugas = Petugas::orderBy('nama')->get();
+
+        $masterMakanan = MasterMakanan::where('aktif', 1)
+            ->orderBy('nama')
+            ->get();
+
         if (Auth::user()->hasRole('Peserta')) {
             $peserta = Peserta::where('id', Auth::user()->peserta_id)->get();
             $selectedPeserta = Auth::user()->peserta_id;
@@ -123,29 +134,155 @@ class MonitoringMakananController extends Controller
             $peserta = Peserta::orderBy('nama')->get();
             $selectedPeserta = $request->peserta_id;
         }
+
         return view(
             'backend.monitoring_makanan.create',
-            compact(
-                'peserta',
-                'petugas',
-                'selectedPeserta'
-            )
+            compact('peserta', 'petugas', 'selectedPeserta', 'masterMakanan')
         );
     }
 
+    /**
+     * Menyimpan Monitoring Makanan
+     */
     public function store(Request $request)
     {
-        $pesertaId = Auth::user()->hasRole('Peserta')
-            ? Auth::user()->peserta_id
-            : $request->peserta_id;
+        $isPeserta = Auth::user()->hasRole('Peserta');
+        $pesertaId = $isPeserta ? Auth::user()->peserta_id : $request->peserta_id;
 
+        // Jika dipanggil oleh pasien, petugas_id opsional
         $request->validate([
-            'petugas_id' => 'required',
-            'tanggal'    => 'required|date'
+            'peserta_id' => $isPeserta ? 'nullable' : 'required',
+            'petugas_id' => $isPeserta ? 'nullable' : 'required',
+            'tanggal'    => 'required|date',
+        ], [
+            'peserta_id.required' => 'Pasien wajib dipilih.',
+            'petugas_id.required' => 'Petugas wajib dipilih.',
+            'tanggal.required'    => 'Tanggal wajib diisi.',
         ]);
 
         $cek = MonitoringMakanan::where('peserta_id', $pesertaId)
             ->whereDate('tanggal', $request->tanggal)
+            ->first();
+
+        if ($cek) {
+            return back()
+                ->withInput()
+                ->with('error', 'Monitoring makanan Anda pada tanggal tersebut sudah dicatat. Silakan edit data yang ada.');
+        }
+
+        DB::beginTransaction();
+
+        try {
+            $monitoring = MonitoringMakanan::create([
+                'peserta_id' => $pesertaId,
+                'petugas_id' => $request->petugas_id ?? null,
+                'tanggal'    => $request->tanggal,
+                'catatan'    => $request->catatan,
+                'created_by' => Auth::id(),
+            ]);
+
+            if ($request->has('waktu_makan')) {
+                foreach ($request->waktu_makan as $key => $value) {
+                    if (!empty($request->nama_makanan[$key])) {
+                        MonitoringMakananDetail::create([
+                            'monitoring_makanan_id' => $monitoring->id,
+                            'waktu_makan'           => $request->waktu_makan[$key],
+                            'nama_makanan'          => $request->nama_makanan[$key],
+                            'jumlah'                => $request->jumlah[$key] ?? 1,
+                            'satuan'                => $request->satuan[$key] ?? 'Porsi',
+                            'kalori'                => $request->kalori[$key] ?? 0,
+                        ]);
+                    }
+                }
+            }
+
+            $this->hitungTotalKalori($monitoring->id);
+
+            DB::commit();
+
+            return redirect()
+                ->route('monitoring_makanan.index')
+                ->with('success', 'Catatan monitoring makanan berhasil disimpan!');
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+
+            return back()
+                ->withInput()
+                ->with('error', 'Gagal menyimpan data: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Detail Monitoring
+     */
+    public function show($id)
+    {
+        $monitoring = MonitoringMakanan::with([
+            'peserta',
+            'petugas',
+            'detail'
+        ])->findOrFail($id);
+
+        if (auth()->user()->hasRole('Peserta') && $monitoring->peserta_id != auth()->user()->peserta_id) {
+            abort(403, 'Akses Ditolak');
+        }
+
+        return view('backend.monitoring_makanan.show', compact('monitoring'));
+    }
+
+    /**
+     * Form Edit Monitoring
+     */
+    public function edit($id)
+    {
+        $monitoring = MonitoringMakanan::with([
+            'detail',
+            'peserta',
+            'petugas'
+        ])->findOrFail($id);
+
+        if (auth()->user()->hasRole('Peserta') && $monitoring->peserta_id != auth()->user()->peserta_id) {
+            abort(403, 'Akses Ditolak');
+        }
+
+        $peserta = Peserta::orderBy('nama')->get();
+        $petugas = Petugas::orderBy('nama')->get();
+
+        $masterMakanan = MasterMakanan::where('aktif', 1)
+            ->orderBy('nama')
+            ->get();
+
+        return view(
+            'backend.monitoring_makanan.edit',
+            compact('monitoring', 'peserta', 'petugas', 'masterMakanan')
+        );
+    }
+
+    /**
+     * Update Monitoring
+     */
+    public function update(Request $request, $id)
+    {
+        $monitoring = MonitoringMakanan::findOrFail($id);
+
+        if (auth()->user()->hasRole('Peserta') && $monitoring->peserta_id != auth()->user()->peserta_id) {
+            abort(403, 'Akses Ditolak');
+        }
+
+        $isPeserta = auth()->user()->hasRole('Peserta');
+
+        $request->validate([
+            'peserta_id' => $isPeserta ? 'nullable' : 'required',
+            'petugas_id' => $isPeserta ? 'nullable' : 'required',
+            'tanggal'    => 'required|date'
+        ]);
+
+        $pesertaId = $isPeserta ? $monitoring->peserta_id : $request->peserta_id;
+
+        $cek = MonitoringMakanan::where('peserta_id', $pesertaId)
+            ->whereDate('tanggal', $request->tanggal)
+            ->where('id', '!=', $id)
             ->first();
 
         if ($cek) {
@@ -157,27 +294,29 @@ class MonitoringMakananController extends Controller
         DB::beginTransaction();
 
         try {
-
-            $monitoring = MonitoringMakanan::create([
+            $monitoring->update([
                 'peserta_id' => $pesertaId,
-                'petugas_id' => $request->petugas_id,
+                'petugas_id' => $request->petugas_id ?? $monitoring->petugas_id,
                 'tanggal'    => $request->tanggal,
                 'catatan'    => $request->catatan,
-                'created_by' => Auth::id(),
+                'updated_by' => Auth::id()
             ]);
 
+            // Hapus detail lama dan ganti baru
+            MonitoringMakananDetail::where('monitoring_makanan_id', $monitoring->id)->delete();
+
             if ($request->has('waktu_makan')) {
-
                 foreach ($request->waktu_makan as $key => $value) {
-
-                    MonitoringMakananDetail::create([
-                        'monitoring_makanan_id' => $monitoring->id,
-                        'waktu_makan'           => $request->waktu_makan[$key],
-                        'nama_makanan'          => $request->nama_makanan[$key],
-                        'jumlah'                => $request->jumlah[$key],
-                        'satuan'                => $request->satuan[$key],
-                        'kalori'                => $request->kalori[$key],
-                    ]);
+                    if (!empty($request->nama_makanan[$key])) {
+                        MonitoringMakananDetail::create([
+                            'monitoring_makanan_id' => $monitoring->id,
+                            'waktu_makan'           => $request->waktu_makan[$key],
+                            'nama_makanan'          => $request->nama_makanan[$key],
+                            'jumlah'                => $request->jumlah[$key] ?? 1,
+                            'satuan'                => $request->satuan[$key] ?? 'Porsi',
+                            'kalori'                => $request->kalori[$key] ?? 0,
+                        ]);
+                    }
                 }
             }
 
@@ -187,185 +326,106 @@ class MonitoringMakananController extends Controller
 
             return redirect()
                 ->route('monitoring_makanan.index')
-                ->with('success', 'Monitoring makanan berhasil disimpan.');
-        } catch (\Exception $e) {
+                ->with('success', 'Monitoring makanan berhasil diperbarui.');
 
-            DB::rollBack();
-
-            return back()
-                ->withInput()
-                ->with('error', $e->getMessage());
-        }
-    }
-
-    public function show($id)
-    {
-        $monitoring = MonitoringMakanan::with([
-            'peserta',
-            'petugas',
-            'detail'
-        ])->findOrFail($id);
-        if (
-            auth()->user()->hasRole('Peserta') &&
-            $monitoring->peserta_id != auth()->user()->peserta_id
-        ) {
-            abort(403);
-        }
-        return view(
-            'backend.monitoring_makanan.show',
-            compact('monitoring')
-        );
-    }
-    public function edit($id)
-    {
-        $monitoring = MonitoringMakanan::with([
-            'detail',
-            'peserta',
-            'petugas'
-        ])->findOrFail($id);
-        if (
-            auth()->user()->hasRole('Peserta') &&
-            $monitoring->peserta_id != auth()->user()->peserta_id
-        ) {
-            abort(403);
-        }
-        $peserta = Peserta::orderBy('nama')->get();
-        $petugas = Petugas::orderBy('nama')->get();
-        return view(
-            'backend.monitoring_makanan.edit',
-            compact(
-                'monitoring',
-                'peserta',
-                'petugas'
-            )
-        );
-    }
-    public function update(Request $request, $id)
-    {
-        $request->validate([
-            'peserta_id' => 'required',
-            'petugas_id' => 'required',
-            'tanggal' => 'required|date'
-        ]);
-        if (
-            auth()->user()->hasRole('Peserta') &&
-            $monitoring->peserta_id != auth()->user()->peserta_id
-        ) {
-            abort(403);
-        }
-        $cek = MonitoringMakanan::where('peserta_id', $request->peserta_id)
-            ->whereDate('tanggal', $request->tanggal)
-            ->where('id', '!=', $id)
-            ->first();
-        if ($cek) {
-            return back()
-                ->withInput()
-                ->with(
-                    'error',
-                    'Monitoring makanan pada tanggal tersebut sudah ada.'
-                );
-        }
-        DB::beginTransaction();
-        try {
-            $monitoring = MonitoringMakanan::findOrFail($id);
-            $monitoring->update([
-                'peserta_id' => $request->peserta_id,
-                'petugas_id' => $request->petugas_id,
-                'tanggal' => $request->tanggal,
-                'catatan' => $request->catatan,
-                'updated_by' => Auth::id()
-            ]);
-            MonitoringMakananDetail::where(
-                'monitoring_makanan_id',
-                $monitoring->id
-            )->delete();
-            if ($request->has('waktu_makan')) {
-                foreach ($request->waktu_makan as $key => $value) {
-                    MonitoringMakananDetail::create([
-                        'monitoring_makanan_id' => $monitoring->id,
-                        'waktu_makan' => $request->waktu_makan[$key],
-                        'nama_makanan' => $request->nama_makanan[$key],
-                        'jumlah' => $request->jumlah[$key],
-                        'satuan' => $request->satuan[$key],
-                        'kalori' => $request->kalori[$key],
-                    ]);
-                }
-            }
-            $this->hitungTotalKalori($monitoring->id);
-            DB::commit();
-            return redirect()->route('monitoring_makanan.index')->with('success', 'Monitoring makanan berhasil diperbarui.');
         } catch (\Exception $e) {
             DB::rollBack();
+
             return back()
                 ->withInput()
-                ->with(
-                    'error',
-                    $e->getMessage()
-                );
+                ->with('error', 'Gagal memperbarui data: ' . $e->getMessage());
         }
     }
+
+    /**
+     * Hapus Data Monitoring
+     */
     public function destroy($id)
     {
         $monitoring = MonitoringMakanan::findOrFail($id);
 
-        if (
-            auth()->user()->hasRole('Peserta') &&
-            $monitoring->peserta_id != auth()->user()->peserta_id
-        ) {
-            abort(403);
+        if (auth()->user()->hasRole('Peserta') && $monitoring->peserta_id != auth()->user()->peserta_id) {
+            abort(403, 'Akses Ditolak');
         }
 
         $monitoring->delete();
 
-        return response()->json([
-            'success' => true
-        ]);
+        return response()->json(['success' => true]);
     }
+
+    /**
+     * Riwayat Monitoring Pasien
+     */
+    public function history($peserta)
+    {
+        if (auth()->user()->hasRole('Peserta') && auth()->user()->peserta_id != $peserta) {
+            abort(403, 'Akses Ditolak');
+        }
+
+        $peserta = Peserta::findOrFail($peserta);
+
+        $riwayat = MonitoringMakanan::with(['petugas', 'detail'])
+            ->where('peserta_id', $peserta->id)
+            ->orderByDesc('tanggal')
+            ->get();
+
+        return view('backend.monitoring_makanan.history', compact('peserta', 'riwayat'));
+    }
+
+    /**
+     * API Autocomplete Pencarian Makanan di Form Input (Interaktif)
+     */
+    public function searchMasterMakanan(Request $request)
+    {
+        $q = trim($request->q);
+
+        if (!$q) {
+            return response()->json([]);
+        }
+
+        $data = MasterMakanan::where('aktif', 1)
+            ->where(function($query) use ($q) {
+                $query->where('nama', 'like', "%{$q}%")
+                      ->orWhere('kategori', 'like', "%{$q}%");
+            })
+            ->limit(15)
+            ->get(['id', 'nama', 'kategori', 'satuan', 'gram', 'kalori']);
+
+        return response()->json($data);
+    }
+
+    /**
+     * API Pencarian Peserta (Select2 / Autocomplete)
+     */
     public function searchPeserta(Request $request)
     {
-        $q = $request->q;
+        $q = trim($request->q);
+
         return Peserta::where('nama', 'like', "%{$q}%")
             ->orWhere('no_bpjs', 'like', "%{$q}%")
             ->orWhere('no_rm', 'like', "%{$q}%")
             ->limit(10)
             ->get(['id', 'nama', 'no_rm', 'no_bpjs']);
     }
+
+    /**
+     * API Pencarian Petugas
+     */
     public function searchPetugas(Request $request)
     {
-        $q = $request->q;
+        $q = trim($request->q);
+
         return Petugas::where('nama', 'like', "%{$q}%")
             ->orWhere('nip', 'like', "%{$q}%")
             ->limit(10)
             ->get(['id', 'nama', 'nip']);
     }
-    public function history($peserta)
-    {
-        if (
-            auth()->user()->hasRole('Peserta') &&
-            auth()->user()->peserta_id != $peserta
-        ) {
-            abort(403);
-        }
-        $peserta = Peserta::findOrFail($peserta);
-        $riwayat = MonitoringMakanan::with(['petugas', 'detail'])
-            ->where('peserta_id', $peserta->id)
-            ->orderByDesc('tanggal')
-            ->get();
-        return view(
-            'backend.monitoring_makanan.history',
-            compact('peserta', 'riwayat')
-        );
-    }
-    /*
-| HELPER
-*/
 
     /*
-|--------------------------------------------------------------------------
-| EXPORT PDF
-|--------------------------------------------------------------------------
-*/
-
+    |--------------------------------------------------------------------------
+    | EXPORT PDF
+    |--------------------------------------------------------------------------
+    */
     public function exportPdf($id)
     {
         $monitoring = MonitoringMakanan::with([
@@ -374,28 +434,19 @@ class MonitoringMakananController extends Controller
             'detail'
         ])->findOrFail($id);
 
-        $pdf = Pdf::loadView(
-            'backend.monitoring_makanan.pdf',
-            compact('monitoring')
-        );
-
+        $pdf = Pdf::loadView('backend.monitoring_makanan.pdf', compact('monitoring'));
         $pdf->setPaper('A4', 'portrait');
 
         return $pdf->download(
-            'Monitoring_Makanan_' .
-                $monitoring->peserta->nama .
-                '_' .
-                $monitoring->tanggal .
-                '.pdf'
+            'Monitoring_Makanan_' . $monitoring->peserta->nama . '_' . $monitoring->tanggal . '.pdf'
         );
     }
 
     /*
-|--------------------------------------------------------------------------
-| EXPORT EXCEL
-|--------------------------------------------------------------------------
-*/
-
+    |--------------------------------------------------------------------------
+    | EXPORT EXCEL
+    |--------------------------------------------------------------------------
+    */
     public function exportExcel($id)
     {
         $monitoring = MonitoringMakanan::with([
@@ -407,180 +458,82 @@ class MonitoringMakananController extends Controller
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
 
-        /*
-    |--------------------------------------------------------------------------
-    | JUDUL
-    |--------------------------------------------------------------------------
-    */
-
+        // Judul Laporan
         $sheet->mergeCells('A1:F1');
         $sheet->setCellValue('A1', 'LAPORAN MONITORING MAKANAN');
-
         $sheet->getStyle('A1')->applyFromArray([
-            'font' => [
-                'bold' => true,
-                'size' => 16,
-            ],
-            'alignment' => [
-                'horizontal' => Alignment::HORIZONTAL_CENTER,
-            ],
+            'font' => ['bold' => true, 'size' => 16],
+            'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
         ]);
 
-        /*
-    |--------------------------------------------------------------------------
-    | BIODATA
-    |--------------------------------------------------------------------------
-    */
-
+        // Biodata Pasien
         $sheet->setCellValue('A3', 'Nama');
         $sheet->setCellValue('B3', $monitoring->peserta->nama);
-
         $sheet->setCellValue('A4', 'No RM');
         $sheet->setCellValue('B4', $monitoring->peserta->no_rm);
-
         $sheet->setCellValue('A5', 'No BPJS');
         $sheet->setCellValue('B5', $monitoring->peserta->no_bpjs);
-
         $sheet->setCellValue('A6', 'Tanggal');
         $sheet->setCellValue('B6', $monitoring->tanggal);
-
         $sheet->setCellValue('A7', 'Petugas');
-        $sheet->setCellValue('B7', $monitoring->petugas->nama ?? '-');
+        $sheet->setCellValue('B7', $monitoring->petugas->nama ?? 'Mandiri (Pasien)');
 
         $sheet->getStyle('A3:B7')->applyFromArray([
-            'borders' => [
-                'allBorders' => [
-                    'borderStyle' => Border::BORDER_THIN,
-                ],
-            ],
+            'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN]],
         ]);
 
-        /*
-    |--------------------------------------------------------------------------
-    | HEADER TABEL
-    |--------------------------------------------------------------------------
-    */
-
+        // Header Tabel
         $row = 9;
-
         $sheet->setCellValue('A' . $row, 'No');
         $sheet->setCellValue('B' . $row, 'Waktu');
         $sheet->setCellValue('C' . $row, 'Nama Makanan');
         $sheet->setCellValue('D' . $row, 'Jumlah');
         $sheet->setCellValue('E' . $row, 'Satuan');
-        $sheet->setCellValue('F' . $row, 'Kalori');
+        $sheet->setCellValue('F' . $row, 'Kalori (Kkal)');
 
-        $sheet->getStyle("A{$row}:F{$row}")
-            ->applyFromArray([
-                'font' => [
-                    'bold' => true,
-                    'color' => [
-                        'rgb' => 'FFFFFF'
-                    ]
-                ],
-                'fill' => [
-                    'fillType' => Fill::FILL_SOLID,
-                    'startColor' => [
-                        'rgb' => '4F81BD'
-                    ]
-                ],
-                'alignment' => [
-                    'horizontal' => Alignment::HORIZONTAL_CENTER,
-                ],
-                'borders' => [
-                    'allBorders' => [
-                        'borderStyle' => Border::BORDER_THIN,
-                    ]
-                ]
-            ]);
+        $sheet->getStyle("A{$row}:F{$row}")->applyFromArray([
+            'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
+            'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => '4F81BD']],
+            'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
+            'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN]]
+        ]);
 
-        /*
-    |--------------------------------------------------------------------------
-    | DETAIL MAKANAN
-    |--------------------------------------------------------------------------
-    */
-
+        // Isi Detail Makanan
         $no = 1;
         $row++;
-
         foreach ($monitoring->detail as $detail) {
-
             $sheet->setCellValue('A' . $row, $no++);
             $sheet->setCellValue('B' . $row, $detail->waktu_makan);
             $sheet->setCellValue('C' . $row, $detail->nama_makanan);
             $sheet->setCellValue('D' . $row, $detail->jumlah);
             $sheet->setCellValue('E' . $row, $detail->satuan);
             $sheet->setCellValue('F' . $row, $detail->kalori);
-
             $row++;
         }
 
-        /*
-    |--------------------------------------------------------------------------
-    | TOTAL
-    |--------------------------------------------------------------------------
-    */
-
+        // Total
         $sheet->setCellValue('E' . $row, 'Total Kalori');
         $sheet->setCellValue('F' . $row, $monitoring->total_kalori);
 
-        $sheet->getStyle("E{$row}:F{$row}")
-            ->applyFromArray([
-                'font' => [
-                    'bold' => true,
-                    'color' => [
-                        'rgb' => 'FFFFFF'
-                    ]
-                ],
-                'fill' => [
-                    'fillType' => Fill::FILL_SOLID,
-                    'startColor' => [
-                        'rgb' => '70AD47'
-                    ]
-                ],
-                'alignment' => [
-                    'horizontal' => Alignment::HORIZONTAL_CENTER,
-                ],
-                'borders' => [
-                    'allBorders' => [
-                        'borderStyle' => Border::BORDER_THIN,
-                    ]
-                ]
-            ]);
+        $sheet->getStyle("E{$row}:F{$row}")->applyFromArray([
+            'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
+            'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => '70AD47']],
+            'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
+            'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN]]
+        ]);
 
-        /*
-    |--------------------------------------------------------------------------
-    | BORDER TABEL
-    |--------------------------------------------------------------------------
-    */
+        // Border Tabel Detail
+        $sheet->getStyle("A9:F{$row}")->applyFromArray([
+            'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN]]
+        ]);
 
-        $sheet->getStyle("A9:F{$row}")
-            ->applyFromArray([
-                'borders' => [
-                    'allBorders' => [
-                        'borderStyle' => Border::BORDER_THIN,
-                    ]
-                ]
-            ]);
-
-        /*
-    |--------------------------------------------------------------------------
-    | AUTO SIZE
-    |--------------------------------------------------------------------------
-    */
-
+        // Auto Size Kolom
         foreach (range('A', 'F') as $column) {
             $sheet->getColumnDimension($column)->setAutoSize(true);
         }
 
         $writer = new Xlsx($spreadsheet);
-
-        $fileName =
-            'Monitoring_Makanan_' .
-            $monitoring->peserta->nama .
-            '_' .
-            $monitoring->tanggal .
-            '.xlsx';
+        $fileName = 'Monitoring_Makanan_' . $monitoring->peserta->nama . '_' . $monitoring->tanggal . '.xlsx';
 
         return response()->streamDownload(function () use ($writer) {
             $writer->save('php://output');
@@ -589,21 +542,23 @@ class MonitoringMakananController extends Controller
         ]);
     }
 
+    /*
+    |--------------------------------------------------------------------------
+    | HELPER METHODS
+    |--------------------------------------------------------------------------
+    */
+
     private function hitungTotalKalori($monitoringId)
     {
-        $total = MonitoringMakananDetail::where(
-            'monitoring_makanan_id',
-            $monitoringId
-        )->sum('kalori');
-        MonitoringMakanan::where('id', $monitoringId)
-            ->update([
-                'total_kalori' => $total
-            ]);
+        $total = MonitoringMakananDetail::where('monitoring_makanan_id', $monitoringId)->sum('kalori');
+
+        MonitoringMakanan::where('id', $monitoringId)->update([
+            'total_kalori' => $total
+        ]);
+
         return $total;
     }
-    /*
-| STATUS KALORI
-*/
+
     private function getStatusKalori($kalori)
     {
         if ($kalori > 2200) {
@@ -614,9 +569,7 @@ class MonitoringMakananController extends Controller
         }
         return 'Normal';
     }
-    /*
-| WARNA BADGE
-*/
+
     private function getBadgeKalori($kalori)
     {
         if ($kalori > 2200) {

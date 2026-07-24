@@ -2,226 +2,511 @@
 @section('title', 'Edit Monitoring Makanan')
 
 @section('content')
-    <div class="container">
-        <div class="page-inner">
-            <div class="row">
-                <div class="col-md-12">
-                    <div class="card">
-                        <div class="card-header">
-                            <h4 class="card-title">Edit Monitoring Makanan Harian</h4>
+<div class="container-fluid py-3">
+    <div class="page-inner">
+        <!-- Header Page -->
+        <div class="d-flex align-items-center justify-content-between mb-4">
+            <div>
+                <h3 class="fw-bold text-dark mb-1">
+                    <i class="fas fa-utensils text-primary me-2"></i>Edit Monitoring Makanan
+                </h3>
+                <p class="text-muted mb-0 small">Ubah dan perbarui data asupan kalori harian peserta.</p>
+            </div>
+            <a href="{{ route('monitoring_makanan.index') }}" class="btn btn-outline-secondary btn-sm rounded-pill px-3">
+                <i class="fas fa-arrow-left me-1"></i> Kembali ke Daftar
+            </a>
+        </div>
+
+        <form action="{{ route('monitoring_makanan.update', $monitoring->id) }}" method="POST" id="formMonitoring">
+            @csrf
+            @method('PUT')
+
+            <div class="row g-4">
+                <!-- Main Form Section -->
+                <div class="col-lg-8">
+                    <div class="card border-0 shadow-sm rounded-3 mb-4">
+                        <div class="card-header bg-white py-3 border-bottom border-light">
+                            <h5 class="card-title fw-bold text-dark mb-0 fs-6">
+                                <i class="fas fa-info-circle me-2 text-primary"></i>Informasi Utama
+                            </h5>
                         </div>
-                        <div class="card-body">
-                            <form action="{{ route('monitoring_makanan.update', $monitoring->id) }}" method="POST">
-                                @csrf
-                                @method('PUT')
-                                <div class="row">
-                                    {{-- Peserta --}}
-                                    <div class="col-md-6 mb-3">
-                                        <label>Peserta</label>
-                                        <input type="text"
-                                            class="form-control"value="{{ $monitoring->peserta->nama }} - {{ $monitoring->peserta->no_bpjs }}"
-                                            readonly>
-                                        <input type="hidden" name="peserta_id" value="{{ $monitoring->peserta_id }}">
-                                    </div>
-                                    {{-- Petugas --}}
-                                    <div class="col-md-6 mb-3">
-                                        <label>Petugas
-                                            <span class="text-danger">*</span>
-                                        </label>
-                                        <select name="petugas_id" class="form-select" required>
+                        <div class="card-body p-4">
+                            <div class="row g-3">
+                                {{-- Peserta --}}
+                                <div class="col-md-6">
+                                    <label class="form-label fw-semibold text-secondary small">Peserta <span class="text-danger">*</span></label>
+                                    <input type="text" class="form-control bg-light"
+                                        value="{{ $monitoring->peserta->nama }} - {{ $monitoring->peserta->no_bpjs }}" readonly>
+                                    <input type="hidden" name="peserta_id" value="{{ $monitoring->peserta_id }}">
+                                </div>
+
+                                {{-- Petugas --}}
+                                @if(auth()->user()->hasRole('Peserta'))
+                                    <input type="hidden" name="petugas_id" value="">
+                                @else
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-semibold text-secondary small">Petugas <span class="text-danger">*</span></label>
+                                        <select name="petugas_id" class="form-select select-custom" required>
                                             <option value="">-- Pilih Petugas --</option>
                                             @foreach ($petugas as $item)
-                                                <option value="{{ $item->id }}"
-                                                    {{ old('petugas_id', $monitoring->petugas_id) == $item->id ? 'selected' : '' }}>
+                                                <option value="{{ $item->id }}" {{ old('petugas_id', $monitoring->petugas_id) == $item->id ? 'selected' : '' }}>
                                                     {{ $item->nama }}
                                                 </option>
                                             @endforeach
                                         </select>
                                     </div>
-                                    {{-- Tanggal --}}
-                                    <div class="col-md-6 mb-3">
-                                        <label>Tanggal</label>
-                                        <input type="date" name="tanggal" class="form-control"
-                                            value="{{ old('tanggal', optional($monitoring->tanggal)->format('Y-m-d')) }}"
-                                            required>
-                                    </div>
-                                    {{-- Total Kalori --}}
-                                    <div class="col-md-6 mb-3">
-                                        <label>Total Kalori</label>
-                                        <input type="number" id="totalKalori" class="form-control"
-                                            value="{{ $monitoring->total_kalori }}" readonly>
-                                    </div>
-                                    {{-- Catatan --}}
-                                    <div class="col-md-12">
-                                        <label>Catatan</label>
-                                        <textarea name="catatan" rows="3" class="form-control" placeholder="Catatan monitoring...">{{ old('catatan', $monitoring->catatan) }}</textarea>
-                                    </div>
+                                @endif
+
+                                {{-- Tanggal --}}
+                                <div class="col-md-6">
+                                    <label class="form-label fw-semibold text-secondary small">Tanggal <span class="text-danger">*</span></label>
+                                    <input type="date" name="tanggal" class="form-control"
+                                        value="{{ old('tanggal', optional($monitoring->tanggal)->format('Y-m-d')) }}" required>
                                 </div>
-                                <hr>
-                                <h5>Detail Makanan</h5>
-                                <h5>Detail Makanan</h5>
 
-                                <div class="table-responsive">
-                                    <table class="table table-bordered align-middle" id="detailTable"
-                                        style="min-width:900px;">
-                                        <thead class="table-light">
-                                            <tr>
-                                                <th style="min-width:150px;">Waktu</th>
-                                                <th style="min-width:220px;">Nama Makanan</th>
-                                                <th style="min-width:90px;">Jumlah</th>
-                                                <th style="min-width:130px;">Satuan</th>
-                                                <th style="min-width:120px;">Kalori</th>
-                                                <th style="width:70px;">Aksi</th>
-                                            </tr>
-                                        </thead>
-
-                                        <tbody>
-
-                                        </tbody>
-
-                                    </table>
+                                {{-- Catatan --}}
+                                <div class="col-md-12">
+                                    <label class="form-label fw-semibold text-secondary small">Catatan Tambahan</label>
+                                    <textarea name="catatan" rows="3" class="form-control" placeholder="Tambahkan catatan khusus jika ada...">{{ old('catatan', $monitoring->catatan) }}</textarea>
                                 </div>
-                                <button type="button" class="btn btn-success btn-sm" id="btnTambah">
-                                    <i class="fa fa-plus"></i>Tambah Makanan
-                                </button>
-                                <hr>
-                                <div class="d-flex flex-column flex-md-row justify-content-end gap-2 mt-4">
+                            </div>
+                        </div>
+                    </div>
+                </div>
 
-                                    <button type="submit" class="btn text-white"
-                                        style="background:linear-gradient(to right,#36d1dc,#5b86e5);border:none;">
-                                        <i class="fas fa-save me-2"></i>
-                                        Update
-                                    </button>
-
-                                    <a href="{{ route('monitoring_makanan.index') }}" class="btn text-white"
-                                        style="background:linear-gradient(to right,#667eea,#764ba2);border:none;">
-                                        <i class="fas fa-arrow-left me-2"></i>
-                                        Kembali
-                                    </a>
-
-                                </div>
-                            </form>
+                <!-- Summary Widget Sidebar -->
+                <div class="col-lg-4">
+                    <div class="card border-0 shadow-sm rounded-3 text-white card-gradient-summary mb-4">
+                        <div class="card-body p-4">
+                            <div class="d-flex align-items-center justify-content-between mb-3">
+                                <span class="text-uppercase tracking-wider small opacity-75 fw-bold">Ringkasan Kalori</span>
+                                <i class="fas fa-fire fs-4 opacity-75"></i>
+                            </div>
+                            <div class="d-flex align-items-baseline">
+                                <input type="number" id="totalKalori" class="display-kalori fw-bold bg-transparent border-0 text-white w-100" value="{{ $monitoring->total_kalori }}" readonly>
+                            </div>
+                            <span class="fs-6 opacity-75">kcal / Total Estimasi</span>
                         </div>
                     </div>
                 </div>
             </div>
-        </div>
+
+            <!-- Detail Makanan Section -->
+            <div class="card border-0 shadow-sm rounded-3 mb-4">
+                <div class="card-header bg-white py-3 border-bottom border-light d-flex align-items-center justify-content-between">
+                    <h5 class="card-title fw-bold text-dark mb-0 fs-6">
+                        <i class="fas fa-hamburger me-2 text-primary"></i>Rincian Makanan
+                    </h5>
+                    <button type="button" class="btn btn-primary btn-sm rounded-2 shadow-sm px-3" id="btnTambah">
+                        <i class="fas fa-plus me-1"></i> Tambah Makanan
+                    </button>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0" id="detailTable">
+                            <thead class="bg-light text-muted small text-uppercase">
+                                <tr>
+                                    <th style="width: 18%;" class="ps-4">Waktu Makan</th>
+                                    <th style="width: 32%;">Nama Makanan</th>
+                                    <th style="width: 10%;">Jumlah</th>
+                                    <th style="width: 20%;">Satuan Porsi</th>
+                                    <th style="width: 12%;">Kalori (kcal)</th>
+                                    <th style="width: 8%;" class="text-center pe-4">Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody class="border-top-0">
+                                <!-- Baris Dimuat Via JS / Data Existing -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Footer Action Buttons -->
+            <div class="card border-0 shadow-sm rounded-3 p-3">
+                <div class="d-flex flex-column flex-md-row justify-content-between align-items-center gap-3">
+                    <a href="{{ route('monitoring_makanan.index') }}" class="btn btn-light border w-100 w-md-auto px-4">
+                        <i class="fas fa-arrow-left me-2"></i> Kembali
+                    </a>
+                    <div class="d-flex gap-2 w-100 w-md-auto">
+                        <button type="submit" class="btn btn-primary-gradient text-white w-100 w-md-auto px-4 shadow-sm">
+                            <i class="fas fa-save me-2"></i> Update Data
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+        </form>
     </div>
+</div>
 @endsection
 
 @section('script')
-    <script>
-        $(document).ready(function() {
+<script>
+    // Format Option Tampilan Select2 Dropdown
+    function formatMakananOption(state) {
+        if (!state.id) {
+            return state.text;
+        }
+
+        let element = $(state.element);
+        let kalori = element.data('kalori') || 0;
+        let satuan = element.data('satuan') || 'Porsi';
+
+        return $(`
+            <div class="d-flex align-items-center justify-content-between py-1">
+                <div class="d-flex align-items-center">
+                    <div class="avatar-sm bg-light text-primary rounded-circle me-2 d-flex align-items-center justify-content-center" style="width:26px; height:26px; font-size:11px;">
+                        <i class="fas fa-utensils"></i>
+                    </div>
+                    <span class="fw-semibold text-dark fs-7">${state.text}</span>
+                </div>
+                <span class="badge bg-warning-subtle text-warning-emphasis rounded-pill fs-8">
+                    🔥 ${kalori} kcal / ${satuan}
+                </span>
+            </div>
+        `);
+    }
+
+    function formatMakananSelection(state) {
+        return state.text;
+    }
+
+    // Inisialisasi Select2
+    function initSelectMakanan() {
+        $('.selectMakanan').each(function () {
+            if (!$(this).hasClass('select2-hidden-accessible')) {
+                $(this).select2({
+                    placeholder: "-- Pilih Makanan --",
+                    allowClear: true,
+                    width: '100%',
+                    templateResult: formatMakananOption,
+                    templateSelection: formatMakananSelection
+                });
+            }
+        });
+    }
+
+    // Fungsi Menambah Baris Tabel (Support Data Existing untuk Edit)
+    function tambahBaris(data = null) {
+        let selectedMasterId = data && data.master_makanan_id ? String(data.master_makanan_id) : '';
+        let namaMakananData = data && data.nama_makanan ? String(data.nama_makanan).trim() : '';
+        let jumlahVal = data && data.jumlah ? data.jumlah : 1;
+        let satuanVal = data && data.satuan ? data.satuan : 'Porsi';
+        let kaloriVal = data && data.kalori ? data.kalori : 0;
+        let waktuVal = data && data.waktu_makan ? data.waktu_makan : 'Makan Pagi';
+
+        let optionsHtml = '<option value="">-- Pilih Makanan --</option>';
+        @foreach ($masterMakanan as $item)
+            {
+                let itemId = "{{ $item->id }}";
+                let itemNama = "{{ trim($item->nama) }}";
+                let isSelected = (selectedMasterId === itemId || (!selectedMasterId && namaMakananData === itemNama)) ? 'selected' : '';
+                
+                optionsHtml += `<option value="${itemId}" 
+                    data-nama="{{ $item->nama }}" 
+                    data-satuan="{{ $item->satuan ?? 'Porsi' }}" 
+                    data-kalori="{{ $item->kalori }}" 
+                    ${isSelected}>{{ $item->nama }}</option>`;
+            }
+        @endforeach
+
+        let html = `
+        <tr class="align-middle">
+            <td class="ps-4">
+                <select name="waktu_makan[]" class="form-select form-select-sm" required>
+                    <option value="Makan Pagi" ${waktuVal=='Makan Pagi' ? 'selected' : ''}>Makan Pagi</option>
+                    <option value="Snack Pagi" ${waktuVal=='Snack Pagi' ? 'selected' : ''}>Snack Pagi</option>
+                    <option value="Makan Siang" ${waktuVal=='Makan Siang' ? 'selected' : ''}>Makan Siang</option>
+                    <option value="Snack Siang" ${waktuVal=='Snack Siang' ? 'selected' : ''}>Snack Siang</option>
+                    <option value="Makan Malam" ${waktuVal=='Makan Malam' ? 'selected' : ''}>Makan Malam</option>
+                    <option value="Snack Malam" ${waktuVal=='Snack Malam' ? 'selected' : ''}>Snack Malam</option>
+                </select>
+            </td>
+            <td>
+                <div class="food-select-wrapper">
+                    <select name="master_makanan_id[]" class="form-select form-select-sm masterMakanan selectMakanan" required>
+                        ${optionsHtml}
+                    </select>
+                    <input type="hidden" name="nama_makanan[]" class="namaMakanan" value="${namaMakananData}">
+                    
+                    <div class="food-info-badge mt-1 d-none align-items-center gap-1">
+                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle rounded-pill fw-normal px-2 py-1 fs-8">
+                            <i class="fas fa-fire me-1"></i>Master DB: <span class="badge-kalori">0</span> kcal / <span class="badge-satuan">porsi</span>
+                        </span>
+                    </div>
+                </div>
+            </td>
+            <td>
+                <input type="number" name="jumlah[]" class="form-control form-control-sm jumlah" value="${jumlahVal}" min="0.1" step="0.1" required>
+            </td>
+            <td>
+                <select name="satuan[]" class="form-select form-select-sm satuan" required>
+                    <option value="${satuanVal}" selected>${satuanVal}</option>
+                    <option value="Porsi">Porsi</option>
+                    <option value="Piring">Piring</option>
+                    <option value="Centong">Centong</option>
+                    <option value="Mangkuk">Mangkuk</option>
+                    <option value="Gram">Gram</option>
+                </select>
+            </td>
+            <td>
+                <input type="number" name="kalori[]" class="form-control form-control-sm kalori bg-light" value="${kaloriVal}" readonly>
+            </td>
+            <td class="text-center pe-4">
+                <button type="button" class="btn btn-outline-danger btn-sm border-0 btnHapus rounded-circle">
+                    <i class="fas fa-trash-alt"></i>
+                </button>
+            </td>
+        </tr>`;
+
+        let $row = $(html);
+        $('#detailTable tbody').append($row);
+        initSelectMakanan();
+
+        // Trigger update info badge jika baris dimuat dari data existing
+        let selectedOption = $row.find('.masterMakanan option:selected');
+        if (selectedOption.val()) {
+            updateBadgeInfo($row, selectedOption);
+        }
+    }
+
+    // Hitung Total Kalori Keseluruhan
+    function hitungKalori() {
+        let total = 0;
+        $('.kalori').each(function() {
+            let nilai = parseFloat($(this).val());
+            if (!isNaN(nilai)) {
+                total += nilai;
+            }
+        });
+        $('#totalKalori').val(total.toFixed(0));
+    }
+
+    // Update Tampilan Badge Informasi Master Makanan
+    function updateBadgeInfo(row, selectedOption) {
+        let nama = selectedOption.data('nama') || '';
+        let satuanDb = $.trim(selectedOption.data('satuan') || 'Porsi');
+        let kalori = selectedOption.data('kalori') || 0;
+
+        let badgeWrapper = row.find('.food-info-badge');
+        if (nama) {
+            badgeWrapper.find('.badge-kalori').text(kalori);
+            badgeWrapper.find('.badge-satuan').text(satuanDb);
+            badgeWrapper.removeClass('d-none').addClass('d-flex');
+        } else {
+            badgeWrapper.addClass('d-none').removeClass('d-flex');
+        }
+    }
+
+    // Kalkulasi Konversi Kalori per Baris
+    function kalkulasiBaris(row) {
+        let selected = row.find('.masterMakanan option:selected');
+        let baseKalori = parseFloat(selected.data('kalori')) || 0;
+        let baseSatuan = $.trim(selected.data('satuan') || 'porsi').toLowerCase();
+        let jumlah = parseFloat(row.find('.jumlah').val()) || 0;
+        let satuanDipilih = row.find('.satuan option:selected').val() || 'Porsi';
+
+        let totalKaloriBaris = 0;
+
+        if (baseSatuan === 'gram' || baseSatuan === 'g') {
+            if (satuanDipilih === 'Porsi' || satuanDipilih === 'Piring') {
+                let gramPerPorsi = 150; 
+                totalKaloriBaris = baseKalori * gramPerPorsi * jumlah;
+            } else if (satuanDipilih === 'Centong') {
+                let gramPerCentong = 75;
+                totalKaloriBaris = baseKalori * gramPerCentong * jumlah;
+            } else if (satuanDipilih === 'Mangkuk') {
+                let gramPerMangkuk = 200;
+                totalKaloriBaris = baseKalori * gramPerMangkuk * jumlah;
+            } else {
+                totalKaloriBaris = baseKalori * jumlah;
+            }
+        } else {
+            totalKaloriBaris = baseKalori * jumlah;
+        }
+
+        row.find('.kalori').val(Math.round(totalKaloriBaris));
+        hitungKalori();
+    }
+
+    $(document).ready(function() {
+        // Load data existing dari database saat mode edit
+        @if($monitoring->detail && count($monitoring->detail) > 0)
             @foreach ($monitoring->detail as $d)
                 tambahBaris({
                     waktu_makan: "{{ $d->waktu_makan }}",
+                    master_makanan_id: "{{ $d->master_makanan_id ?? '' }}",
                     nama_makanan: @json($d->nama_makanan),
                     jumlah: "{{ $d->jumlah }}",
                     satuan: @json($d->satuan),
                     kalori: "{{ $d->kalori }}"
                 });
             @endforeach
-            hitungKalori();
-            $('#btnTambah').click(function() {
-                tambahBaris();
-            });
-            $(document).on('click', '.btnHapus', function() {
-                $(this).closest('tr').remove();
-                hitungKalori();
-            });
-            $(document).on('keyup change', '.kalori', function() {
-                hitungKalori();
-            });
+        @else
+            tambahBaris();
+        @endif
+
+        hitungKalori();
+
+        // Tombol Tambah Baris
+        $('#btnTambah').click(function() {
+            tambahBaris();
         });
 
-        function tambahBaris(data = null) {
-            let html = `
-            <tr>
-                <td>
-                    <select name="waktu_makan[]" class="form-select" required>
-                        <option value="Makan Pagi" ${data && data.waktu_makan=='Makan Pagi' ? 'selected' : ''}>Makan Pagi</option>
-                        <option value="Snack Pagi" ${data && data.waktu_makan=='Snack Pagi' ? 'selected' : ''}>Snack Pagi</option>
-                        <option value="Makan Siang" ${data && data.waktu_makan=='Makan Siang' ? 'selected' : ''}>Makan Siang</option>
-                        <option value="Snack Siang" ${data && data.waktu_makan=='Snack Siang' ? 'selected' : ''}>Snack Siang</option>
-                        <option value="Makan Malam" ${data && data.waktu_makan=='Makan Malam' ? 'selected' : ''}>Makan Malam</option>
-                        <option value="Snack Malam" ${data && data.waktu_makan=='Snack Malam' ? 'selected' : ''}>Snack Malam</option>
-                    </select>
-                </td>
-                <td>
-                    <input type="text" name="nama_makanan[]" class="form-control" value="${data ? data.nama_makanan : ''}" required>
-                </td>
-                <td>
-                    <input type="number" name="jumlah[]" class="form-control" value="${data ? data.jumlah : 1}" required>
-                </td>
-                <td>
-                    <select name="satuan[]" class="form-select" required>
-                        <option value="">-- Pilih --</option>
-                        <option value="mkk" ${data && data.satuan == 'mkk' ? 'selected' : ''}>Mangkuk</option>
-                        <option value="ckr" ${data && data.satuan == 'ckr' ? 'selected' : ''}>Cangkir</option>
-                        <option value="btr" ${data && data.satuan == 'btr' ? 'selected' : ''}>Butir</option>
-                        <option value="ptg" ${data && data.satuan == 'ptg' ? 'selected' : ''}>Potong</option>
-                        <option value="prg" ${data && data.satuan == 'prg' ? 'selected' : ''}>Piring</option>
-                        <option value="bks" ${data && data.satuan == 'bks' ? 'selected' : ''}>Bungkus</option>
-                        <option value="gls" ${data && data.satuan == 'gls' ? 'selected' : ''}>Gelas</option>
-                    </select>
-                </td>
-                <td>
-                    <input type="number" name="kalori[]" class="form-control kalori" value="${data ? data.kalori : 0}">
-                </td>
-                <td class="text-center">
-                    <button type="button" class="btn btn-danger btn-sm btnHapus">
-                        <i class="fa fa-trash"></i>
-                    </button>
-                </td>
-            </tr>
-            `;
-            $('#detailTable tbody').append(html);
-        }
+        // Hapus Baris
+        $(document).on('click', '.btnHapus', function() {
+            if ($('#detailTable tbody tr').length > 1) {
+                $(this).closest('tr').fadeOut(200, function() {
+                    $(this).remove();
+                    hitungKalori();
+                });
+            } else {
+                alert('Minimal harus ada 1 rincian makanan.');
+            }
+        });
 
-        function hitungKalori() {
-            let total = 0;
-            $('.kalori').each(function() {
-                let nilai = parseFloat($(this).val());
-                if (!isNaN(nilai)) {
-                    total += nilai;
-                }
-            });
-            $('#totalKalori').val(total);
-        }
-    </script>
+        // Event saat Memilih Item Makanan dari Select2
+        $(document).on('change', '.masterMakanan', function() {
+            let row = $(this).closest('tr');
+            let selected = $(this).find(':selected');
 
-    <style>
-        @media (max-width: 768px) {
+            let nama = selected.data('nama') || '';
+            let satuanDb = $.trim(selected.data('satuan') || 'Porsi');
 
-            .card-header {
-                flex-direction: column;
-                align-items: stretch !important;
-                gap: 10px;
+            row.find('.namaMakanan').val(nama);
+
+            let selectSatuan = row.find('.satuan');
+            let currentSatuanVal = selectSatuan.val();
+            selectSatuan.empty();
+
+            if (satuanDb.toLowerCase() === 'gram' || satuanDb.toLowerCase() === 'g') {
+                selectSatuan.append(`
+                    <option value="Porsi">Porsi / Piring (±150g)</option>
+                    <option value="Centong">Centong (±75g)</option>
+                    <option value="Mangkuk">Mangkuk (±200g)</option>
+                    <option value="Gram">Gram</option>
+                `);
+            } else {
+                selectSatuan.append(`
+                    <option value="${satuanDb}">${satuanDb}</option>
+                    <option value="Porsi">Porsi</option>
+                    <option value="Piring">Piring</option>
+                `);
+            }
+            
+            // Pertahankan value satuan lama jika ada di opsi baru
+            if(selectSatuan.find(`option[value="${currentSatuanVal}"]`).length > 0) {
+                selectSatuan.val(currentSatuanVal);
             }
 
-            .card-title {
-                text-align: center;
-            }
+            updateBadgeInfo(row, selected);
+            kalkulasiBaris(row);
+        });
 
-            .btn {
-                width: 100%;
-                margin-bottom: 8px;
-            }
+        // Event listener saat ubah Jumlah atau Satuan Porsi
+        $(document).on('input change', '.jumlah, .satuan', function() {
+            let row = $(this).closest('tr');
+            kalkulasiBaris(row);
+        });
+    });
+</script>
 
-            .table td,
-            .table th {
-                white-space: nowrap;
-                vertical-align: middle;
-            }
+<style>
+    .card-gradient-summary {
+        background: linear-gradient(135deg, #4338ca 0%, #6366f1 100%);
+    }
 
-            #detailTable input,
-            #detailTable select {
-                min-width: 120px;
-            }
+    .btn-primary-gradient {
+        background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%);
+        border: none;
+        transition: all 0.2s ease;
+    }
 
-            textarea {
-                min-height: 90px;
-            }
-        }
-    </style>
+    .btn-primary-gradient:hover {
+        opacity: 0.95;
+        transform: translateY(-1px);
+    }
+
+    .display-kalori {
+        font-size: 2.75rem;
+        line-height: 1;
+        outline: none;
+    }
+
+    .form-control, .form-select {
+        border-color: #e2e8f0;
+        padding: 0.5rem 0.75rem;
+        border-radius: 0.375rem;
+    }
+
+    .form-control:focus, .form-select:focus {
+        border-color: #818cf8;
+        box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+    }
+
+    .select2-container--default .select2-selection--single {
+        height: 38px;
+        border: 1px solid #e2e8f0;
+        border-radius: 0.375rem;
+        display: flex;
+        align-items: center;
+    }
+
+    .select2-container--default .select2-selection--single .select2-selection__rendered {
+        line-height: normal;
+        padding-left: 12px;
+        color: #334155;
+    }
+
+    .select2-container--default .select2-selection--single .select2-selection__arrow {
+        height: 36px;
+        right: 8px;
+    }
+
+    .select2-dropdown {
+        border-color: #e2e8f0;
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        border-radius: 0.375rem;
+        overflow: hidden;
+    }
+
+    .select2-search--dropdown {
+        padding: 6px;
+    }
+
+    .select2-search--dropdown .select2-search__field {
+        border: 1px solid #e2e8f0;
+        border-radius: 0.25rem;
+        padding: 4px 8px;
+        outline: none;
+    }
+
+    .select2-container--default .select2-results__option--highlighted[aria-selected] {
+        background-color: #eef2ff !important;
+        color: #4338ca !important;
+    }
+
+    .select2-results__option {
+        border-bottom: 1px solid #f8fafc;
+        padding: 6px 12px !important;
+    }
+
+    .fs-7 { font-size: 0.825rem; }
+    .fs-8 { font-size: 0.75rem; }
+
+    .bg-primary-subtle { background-color: #e0e7ff !important; }
+    .bg-warning-subtle { background-color: #fef3c7 !important; }
+    .text-warning-emphasis { color: #b45309 !important; }
+
+    #detailTable th {
+        font-weight: 600;
+        letter-spacing: 0.05em;
+        background-color: #f8fafc;
+    }
+
+    .tracking-wider {
+        letter-spacing: 0.05em;
+    }
+</style>
 @endsection

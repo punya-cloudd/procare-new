@@ -24,19 +24,20 @@ return new class extends Migration
                 ->comment('Jam 00 - 23');
 
             // INTERVAL 15 MENIT
-            $table->tinyInteger('m00')
+
+            $table->string('m00', 10)
                 ->nullable()
                 ->comment('00 - 15 menit');
 
-            $table->tinyInteger('m15')
+            $table->string('m15', 10)
                 ->nullable()
                 ->comment('15 - 30 menit');
 
-            $table->tinyInteger('m30')
+            $table->string('m30', 10)
                 ->nullable()
                 ->comment('30 - 45 menit');
 
-            $table->tinyInteger('m45')
+            $table->string('m45', 10)
                 ->nullable()
                 ->comment('45 - 60 menit');
 

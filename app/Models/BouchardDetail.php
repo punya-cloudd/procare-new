@@ -28,11 +28,6 @@ class BouchardDetail extends Model
 
         'jam' => 'integer',
 
-        'm00' => 'integer',
-        'm15' => 'integer',
-        'm30' => 'integer',
-        'm45' => 'integer',
-
     ];
 
     /*
@@ -57,15 +52,15 @@ class BouchardDetail extends Model
 
     public function getTotalIntervalAttribute()
     {
-        return collect([
+        return count(array_filter([
             $this->m00,
             $this->m15,
             $this->m30,
-            $this->m45
-        ])->filter()->count();
+            $this->m45,
+        ]));
     }
 
-    public function getKategoriAttribute()
+    public function getIntervalAttribute()
     {
         return [
             '00-15' => $this->m00,
@@ -75,28 +70,196 @@ class BouchardDetail extends Model
         ];
     }
 
-    public static function kategoriBouchard()
+    /*
+    |--------------------------------------------------------------------------
+    | MASTER AKTIVITAS BOUCHARD
+    |--------------------------------------------------------------------------
+    */
+
+    public static function aktivitasList()
     {
         return [
-            1 => ['aktivitas' => 'Tidur / Berbaring', 'energi' => 0.26],
-            2 => ['aktivitas' => 'Duduk', 'energi' => 0.30],
-            3 => ['aktivitas' => 'Berdiri', 'energi' => 0.38],
-            4 => ['aktivitas' => 'Berjalan / Aktivitas Ringan', 'energi' => 0.57],
-            5 => ['aktivitas' => 'Pekerjaan Manual Ringan', 'energi' => 0.83],
-            6 => ['aktivitas' => 'Olahraga Ringan', 'energi' => 1.00],
-            7 => ['aktivitas' => 'Pekerjaan Manual Sedang', 'energi' => 1.20],
-            8 => ['aktivitas' => 'Olahraga Sedang', 'energi' => 1.40],
-            9 => ['aktivitas' => 'Olahraga Berat', 'energi' => 1.95],
+
+            1 => [
+                'label' => 'Kat 1 • 1 MET',
+                'energi' => 0.26,
+                'items' => [
+                    'Tidur',
+                    'Berbaring / istirahat di ranjang',
+                ]
+            ],
+
+            2 => [
+                'label' => 'Kat 2 • 1.5 MET',
+                'energi' => 0.38,
+                'items' => [
+                    'Duduk (makan)',
+                    'Duduk menulis / mengetik',
+                    'Duduk membaca',
+                    'Menonton TV / dengar radio',
+                    'Duduk di kelas / kuliah',
+                    'Mandi (duduk)',
+                ]
+            ],
+
+            3 => [
+                'label' => 'Kat 3 • 1.5 MET',
+                'energi' => 0.38,
+                'items' => [
+                    'Berdiri, aktivitas ringan',
+                    'Memasak',
+                    'Mencuci badan / bercukur',
+                    'Membersihkan debu',
+                ]
+            ],
+
+            4 => [
+                'label' => 'Kat 4 • 2.3 MET',
+                'energi' => 0.57,
+                'items' => [
+                    'Berpakaian',
+                    'Mengendarai mobil',
+                    'Berjalan santai',
+                ]
+            ],
+
+            5 => [
+                'label' => 'Kat 5 • 3.3 MET',
+                'energi' => 0.83,
+                'items' => [
+                    'Menyapu',
+                    'Mengepel',
+                    'Berjalan agak cepat',
+                    'Pekerjaan laboratorium',
+                    'Membereskan ranjang',
+                ]
+            ],
+
+            6 => [
+                'label' => 'Kat 6 • 4 MET',
+                'energi' => 1.00,
+                'items' => [
+                    'Bola voli',
+                    'Golf',
+                    'Tenis meja',
+                    'Bersepeda santai',
+                    'Bowling',
+                ]
+            ],
+
+            7 => [
+                'label' => 'Kat 7 • 4.8 MET',
+                'energi' => 1.20,
+                'items' => [
+                    'Mengoperasikan mesin',
+                    'Berkebun',
+                    'Mengangkat beban',
+                    'Menyekop',
+                ]
+            ],
+
+            8 => [
+                'label' => 'Kat 8 • 5.6 MET',
+                'energi' => 1.40,
+                'items' => [
+                    'Bulu tangkis',
+                    'Renang',
+                    'Jogging',
+                    'Jalan cepat',
+                    'Tenis',
+                    'Senam',
+                ]
+            ],
+
+            9 => [
+                'label' => 'Kat 9 • 7.8 MET',
+                'energi' => 1.95,
+                'items' => [
+                    'Lari',
+                    'Basket',
+                    'Sepak bola',
+                    'Mendaki gunung',
+                    'Tinju',
+                ]
+            ],
+
         ];
     }
 
-    public function energi($kategori)
+    /*
+    |--------------------------------------------------------------------------
+    | HELPER
+    |--------------------------------------------------------------------------
+    */
+
+    protected function getKategoriKode($value)
     {
-        return self::kategoriBouchard()[$kategori]['energi'] ?? '-';
+        if (empty($value)) {
+            return null;
+        }
+
+        $data = explode('-', $value);
+
+        return (int) ($data[0] ?? 0);
     }
 
-    public function aktivitas($kategori)
+    protected function getAktivitasIndex($value)
     {
-        return self::kategoriBouchard()[$kategori]['aktivitas'] ?? '-';
+        if (empty($value)) {
+            return null;
+        }
+
+        $data = explode('-', $value);
+
+        return isset($data[1])
+            ? (int) $data[1]
+            : 0;
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | ENERGI
+    |--------------------------------------------------------------------------
+    */
+
+    public function energi($value)
+    {
+        $kategori = $this->getKategoriKode($value);
+        $list = self::aktivitasList();
+
+        return $list[$kategori]['energi'] ?? 0;
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | LABEL KATEGORI
+    |--------------------------------------------------------------------------
+    */
+
+    public function labelKategori($value)
+    {
+        $kategori = $this->getKategoriKode($value);
+        $list = self::aktivitasList();
+
+        return $list[$kategori]['label'] ?? '-';
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | NAMA AKTIVITAS
+    |--------------------------------------------------------------------------
+    */
+
+    public function aktivitas($value)
+    {
+        if (empty($value)) {
+            return '-';
+        }
+
+        $kategori = $this->getKategoriKode($value);
+        $index = $this->getAktivitasIndex($value);
+        $list = self::aktivitasList();
+
+        return $list[$kategori]['items'][$index] ?? '-';
     }
 }

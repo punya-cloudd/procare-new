@@ -20,6 +20,7 @@ return new class extends Migration
                 ->comment('Relasi ke tabel peserta');
 
             $table->unsignedBigInteger('petugas_id')
+                ->nullable()
                 ->comment('Relasi ke tabel petugas');
 
             // TANGGAL MONITORING

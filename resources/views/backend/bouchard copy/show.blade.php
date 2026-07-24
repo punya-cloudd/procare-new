@@ -1,7 +1,5 @@
 @extends('backend.app')
-
 @section('title', 'Detail Kuisioner Bouchard')
-
 @section('content')
 
     <div class="container">
@@ -18,7 +16,8 @@
 
                     </h4>
 
-                    <a href="{{ route('bouchard.history', $bouchard->peserta_id) }}" class="btn text-white shadow-sm px-4 py-2"
+                    <a href="{{ route('bouchard.history', $bouchard->peserta_id) }}"
+                        class="btn text-white shadow-sm px-4 py-2"
                         style="background:linear-gradient(to right,#667eea,#764ba2);border:none;">
 
                         <i class="fas fa-arrow-left me-2"></i>
@@ -41,11 +40,7 @@
 
                                     <th width="35%">No RM</th>
 
-                                    <td>
-
-                                        {{ $bouchard->peserta->no_rm }}
-
-                                    </td>
+                                    <td>{{ $bouchard->peserta->no_rm }}</td>
 
                                 </tr>
 
@@ -53,11 +48,7 @@
 
                                     <th>Nama Peserta</th>
 
-                                    <td>
-
-                                        {{ $bouchard->peserta->nama }}
-
-                                    </td>
+                                    <td>{{ $bouchard->peserta->nama }}</td>
 
                                 </tr>
 
@@ -65,11 +56,7 @@
 
                                     <th>NIK</th>
 
-                                    <td>
-
-                                        {{ $bouchard->peserta->nik }}
-
-                                    </td>
+                                    <td>{{ $bouchard->peserta->nik }}</td>
 
                                 </tr>
 
@@ -77,11 +64,7 @@
 
                                     <th>No BPJS</th>
 
-                                    <td>
-
-                                        {{ $bouchard->peserta->no_bpjs }}
-
-                                    </td>
+                                    <td>{{ $bouchard->peserta->no_bpjs }}</td>
 
                                 </tr>
 
@@ -137,7 +120,7 @@
 
                                         <span class="badge bg-info">
 
-                                            {{ $bouchard->berat_badan }} Kg
+                                            {{ number_format($bouchard->berat_badan, 2) }} Kg
 
                                         </span>
 
@@ -145,31 +128,31 @@
 
                                 </tr>
 
-                                <tr>
+                                {{-- <tr>
 
-                                    <th>Rata-rata Aktivitas</th>
-
-                                    <td>
-
-                                        <span class="badge bg-warning text-dark">
-
-                                            {{ number_format($bouchard->rata_aktivitas, 2) }}
-
-                                        </span>
-
-                                    </td>
-
-                                </tr>
-
-                                <tr>
-
-                                    <th>Total Energi</th>
+                                    <th>Total Kalori</th>
 
                                     <td>
 
                                         <span class="badge bg-success">
 
-                                            {{ number_format($bouchard->total_energi, 0) }} Kkal
+                                            {{ number_format($bouchard->total_kalori, 2) }} Kkal
+
+                                        </span>
+
+                                    </td>
+
+                                </tr> --}}
+
+                                <tr>
+
+                                    <th>Kategori</th>
+
+                                    <td>
+
+                                        <span class="badge bg-primary">
+
+                                            {{ $bouchard->kategori ?? '-' }}
 
                                         </span>
 
@@ -187,7 +170,7 @@
 
                     <h4 class="mb-3">
 
-                        Hari Ke-1
+                        Monitoring Aktivitas Harian
 
                     </h4>
 
@@ -203,59 +186,122 @@
 
                                     <th>00-15</th>
 
-                                    <th>16-30</th>
+                                    <th>15-30</th>
 
-                                    <th>31-45</th>
+                                    <th>30-45</th>
 
-                                    <th>46-60</th>
+                                    <th>45-60</th>
 
                                 </tr>
 
                             </thead>
 
                             <tbody>
+
                                 @php
 
-                                    $hari1 = $bouchard->detail->where('hari', 1)->keyBy('jam');
+                                    $detail = $bouchard->detail->keyBy('jam');
 
                                 @endphp
 
                                 @for ($jam = 0; $jam <= 23; $jam++)
                                     @php
-
-                                        $row = $hari1->get($jam);
-
+                                        $row = $detail->get($jam);
                                     @endphp
 
                                     <tr>
 
                                         <td class="text-center fw-bold">
 
-                                            {{ sprintf('%02d', $jam) }}
+                                            {{ sprintf('%02d', $jam) }}:00
 
                                         </td>
 
+                                        {{-- 00 - 15 --}}
                                         <td class="text-center">
 
-                                            {{ $row->m00 ?? '-' }}
+                                            @if ($row && $row->m00)
+                                                <div class="fw-bold">
+
+                                                    {{ $row->aktivitas($row->m00) }}
+
+                                                </div>
+
+                                                <small class="text-primary">
+
+                                                    {{ number_format($row->energi($row->m00), 2) }}
+                                                    kcal/kg/15 menit
+
+                                                </small>
+                                            @else
+                                                -
+                                            @endif
 
                                         </td>
 
+                                        {{-- 15 - 30 --}}
                                         <td class="text-center">
 
-                                            {{ $row->m15 ?? '-' }}
+                                            @if ($row && $row->m15)
+                                                <div class="fw-bold">
+
+                                                    {{ $row->aktivitas($row->m15) }}
+
+                                                </div>
+
+                                                <small class="text-primary">
+
+                                                    {{ number_format($row->energi($row->m15), 2) }}
+                                                    kcal/kg/15 menit
+
+                                                </small>
+                                            @else
+                                                -
+                                            @endif
 
                                         </td>
 
+                                        {{-- 30 - 45 --}}
                                         <td class="text-center">
 
-                                            {{ $row->m30 ?? '-' }}
+                                            @if ($row && $row->m30)
+                                                <div class="fw-bold">
+
+                                                    {{ $row->aktivitas($row->m30) }}
+
+                                                </div>
+
+                                                <small class="text-primary">
+
+                                                    {{ number_format($row->energi($row->m30), 2) }}
+                                                    kcal/kg/15 menit
+
+                                                </small>
+                                            @else
+                                                -
+                                            @endif
 
                                         </td>
 
+                                        {{-- 45 - 60 --}}
                                         <td class="text-center">
 
-                                            {{ $row->m45 ?? '-' }}
+                                            @if ($row && $row->m45)
+                                                <div class="fw-bold">
+
+                                                    {{ $row->aktivitas($row->m45) }}
+
+                                                </div>
+
+                                                <small class="text-primary">
+
+                                                    {{ number_format($row->energi($row->m45), 2) }}
+                                                    kcal/kg/15 menit
+
+                                                </small>
+                                            @else
+                                                -
+                                            @endif
 
                                         </td>
 
@@ -268,251 +314,158 @@
 
                     </div>
 
-                    <hr class="my-4">
+                    @php
 
-                    <h4 class="mb-3">
+    $totalEnergi = 0;
 
-                        Hari Ke-2
+    foreach ($bouchard->detail as $detail) {
 
-                    </h4>
+        foreach ([
+            $detail->m00,
+            $detail->m15,
+            $detail->m30,
+            $detail->m45,
+        ] as $kategori) {
 
-                    <div class="table-responsive">
+            switch ($kategori) {
 
-                        <table class="table table-bordered table-striped">
+                case 1: $totalEnergi += 0.26; break;
+                case 2: $totalEnergi += 0.30; break;
+                case 3: $totalEnergi += 0.38; break;
+                case 4: $totalEnergi += 0.57; break;
+                case 5: $totalEnergi += 0.83; break;
+                case 6: $totalEnergi += 1.00; break;
+                case 7: $totalEnergi += 1.20; break;
+                case 8: $totalEnergi += 1.40; break;
+                case 9: $totalEnergi += 1.95; break;
 
-                            <thead class="table-primary text-center">
+            }
 
-                                <tr>
+        }
 
-                                    <th width="70">Jam</th>
+    }
 
-                                    <th>00-15</th>
+    $totalKalori = $totalEnergi * $bouchard->berat_badan;
 
-                                    <th>16-30</th>
+@endphp
 
-                                    <th>31-45</th>
+<div class="row mt-4">
 
-                                    <th>46-60</th>
+    <div class="col-md-6">
 
-                                </tr>
+        <table class="table table-bordered">
 
-                            </thead>
+            <tr>
 
-                            <tbody>
+                <th width="40%">Berat Badan</th>
 
-                                @php
+                <td>
 
-                                    $hari2 = $bouchard->detail->where('hari', 2)->keyBy('jam');
+                    {{ number_format($bouchard->berat_badan, 2) }} Kg
 
-                                @endphp
+                </td>
 
-                                @for ($jam = 0; $jam <= 23; $jam++)
-                                    @php
+            </tr>
 
-                                        $row = $hari2->get($jam);
+            <tr>
 
-                                    @endphp
+                <th>Rata-rata Aktivitas</th>
 
-                                    <tr>
+                <td>
 
-                                        <td class="text-center fw-bold">
+                    <span class="badge bg-warning text-dark fs-6">
 
-                                            {{ sprintf('%02d', $jam) }}
+                        {{ number_format($totalEnergi,2) }}
 
-                                        </td>
+                    </span>
 
-                                        <td class="text-center">
+                </td>
 
-                                            {{ $row->m00 ?? '-' }}
+            </tr>
 
-                                        </td>
+            <tr>
 
-                                        <td class="text-center">
+                <th>Total Energi</th>
 
-                                            {{ $row->m15 ?? '-' }}
+                <td>
 
-                                        </td>
+                    <span class="badge bg-success fs-6">
 
-                                        <td class="text-center">
+                        {{ number_format($totalKalori,2) }} Kkal
 
-                                            {{ $row->m30 ?? '-' }}
+                    </span>
 
-                                        </td>
+                </td>
 
-                                        <td class="text-center">
+            </tr>
 
-                                            {{ $row->m45 ?? '-' }}
+            <tr>
 
-                                        </td>
+                <th>Kategori Aktivitas</th>
 
-                                    </tr>
-                                @endfor
+                <td>
 
-                            </tbody>
+                    <span class="badge bg-primary fs-6">
 
-                        </table>
+                        {{ $bouchard->kategori ?? '-' }}
 
-                    </div>
+                    </span>
 
-                    <hr class="my-4">
+                </td>
 
-                    <h4 class="mb-3">
+            </tr>
 
-                        Hari Ke-3
+        </table>
 
-                    </h4>
+    </div>
 
-                    <div class="table-responsive">
+    <div class="col-md-6">
 
-                        <table class="table table-bordered table-striped">
+        <table class="table table-bordered">
 
-                            <thead class="table-primary text-center">
+            <tr>
 
-                                <tr>
+                <th width="35%">Catatan</th>
 
-                                    <th width="70">Jam</th>
+                <td>
 
-                                    <th>00-15</th>
+                    {{ $bouchard->catatan ?: '-' }}
 
-                                    <th>16-30</th>
+                </td>
 
-                                    <th>31-45</th>
+            </tr>
 
-                                    <th>46-60</th>
+            <tr>
 
-                                </tr>
+                <th>Dibuat</th>
 
-                            </thead>
+                <td>
 
-                            <tbody>
-                                @php
+                    {{ $bouchard->created_at?->format('d-m-Y H:i') }}
 
-                                    $hari3 = $bouchard->detail->where('hari', 3)->keyBy('jam');
+                </td>
 
-                                @endphp
+            </tr>
 
-                                @for ($jam = 0; $jam <= 23; $jam++)
-                                    @php
+            <tr>
 
-                                        $row = $hari3->get($jam);
+                <th>Terakhir Diubah</th>
 
-                                    @endphp
+                <td>
 
-                                    <tr>
+                    {{ $bouchard->updated_at?->format('d-m-Y H:i') }}
 
-                                        <td class="text-center fw-bold">
+                </td>
 
-                                            {{ sprintf('%02d', $jam) }}
+            </tr>
 
-                                        </td>
+        </table>
 
-                                        <td class="text-center">
+    </div>
 
-                                            {{ $row->m00 ?? '-' }}
+</div>
 
-                                        </td>
-
-                                        <td class="text-center">
-
-                                            {{ $row->m15 ?? '-' }}
-
-                                        </td>
-
-                                        <td class="text-center">
-
-                                            {{ $row->m30 ?? '-' }}
-
-                                        </td>
-
-                                        <td class="text-center">
-
-                                            {{ $row->m45 ?? '-' }}
-
-                                        </td>
-
-                                    </tr>
-                                @endfor
-
-                            </tbody>
-
-                        </table>
-
-                    </div>
-
-                    <hr>
-
-                    <div class="row mt-4">
-
-                        <div class="col-md-6">
-
-                            <table class="table table-bordered">
-
-                                <tr>
-
-                                    <th width="45%">Berat Badan</th>
-
-                                    <td>
-
-                                        {{ $bouchard->berat_badan }} Kg
-
-                                    </td>
-
-                                </tr>
-
-                                <tr>
-
-                                    <th>Rata-rata Aktivitas</th>
-
-                                    <td>
-
-                                        {{ number_format($bouchard->rata_aktivitas, 2) }}
-
-                                    </td>
-
-                                </tr>
-
-                                <tr>
-
-                                    <th>Total Energi</th>
-
-                                    <td>
-
-                                        <span class="badge bg-success">
-
-                                            {{ number_format($bouchard->total_energi, 0) }} Kkal
-
-                                        </span>
-
-                                    </td>
-
-                                </tr>
-
-                            </table>
-
-                        </div>
-
-                        <div class="col-md-6">
-
-                            <table class="table table-bordered">
-
-                                <tr>
-
-                                    <th width="35%">Catatan</th>
-
-                                    <td>
-
-                                        {{ $bouchard->catatan ?: '-' }}
-
-                                    </td>
-
-                                </tr>
-
-                            </table>
-
-                        </div>
-
-                    </div>
-                    <div class="mt-4 d-flex justify-content-end">
+                    <div class="d-flex justify-content-end mt-4">
 
                         <a href="{{ route('bouchard.history', $bouchard->peserta_id) }}" class="btn btn-secondary">
 

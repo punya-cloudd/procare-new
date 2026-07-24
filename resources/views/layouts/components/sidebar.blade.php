@@ -75,6 +75,14 @@
                             </li>
                             @endcan
 
+                            @can('master-makanan-list')
+                            <li class="{{ Route::is('master_makanan.*') ? 'active' : '' }}">
+                                <a href="{{ route('master_makanan.index') }}">
+                                    <span class="sub-item">Data Master Makanan</span>
+                                </a>
+                            </li>
+                            @endcan
+
                             @can('unit-layanan-list')
                             <li class="{{ Route::is('unit_layanan.*') ? 'active' : '' }}">
                                 <a href="{{ route('unit_layanan.index') }}">

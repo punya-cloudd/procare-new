@@ -34,11 +34,9 @@ class Bouchard extends Model
     protected $casts = [
 
         'tanggal' => 'date',
-
         'berat_badan' => 'decimal:2',
-
         'total_kalori' => 'decimal:2',
-
+        'kategori' => 'string',
     ];
 
     /*

@@ -11,6 +11,7 @@ use App\Http\Controllers\Backend\BouchardController;
 use App\Http\Controllers\Backend\DokterController;
 use App\Http\Controllers\Backend\HomeVisitController;
 use App\Http\Controllers\Backend\JenisPenyakitController;
+use App\Http\Controllers\Backend\MasterMakananController;
 use App\Http\Controllers\Backend\MonitoringMakananController;
 use App\Http\Controllers\Backend\PasienController;
 use App\Http\Controllers\Backend\PetugasController;
@@ -86,6 +87,22 @@ Route::prefix('backend')->middleware(['auth'])->group(function () {
         Route::put('/{id}', [JenisPenyakitController::class, 'update'])->name('jenis_penyakit.update');
         Route::get('/{id}', [JenisPenyakitController::class, 'show'])->name('jenis_penyakit.show');
         Route::delete('/{id}', [JenisPenyakitController::class, 'destroy'])->name('jenis_penyakit.destroy');
+    });
+
+    // Data Master Makanan
+    Route::prefix('master_makanan')->group(function () {
+        Route::get('/', [MasterMakananController::class, 'index'])->name('master_makanan.index');
+        Route::get('/create', [MasterMakananController::class, 'create'])->name('master_makanan.create');
+        Route::post('/', [MasterMakananController::class, 'store'])->name('master_makanan.store');
+
+        // Route Pencarian API
+        Route::get('/search-api', [MasterMakananController::class, 'searchApi'])->name('master_makanan.search_api');
+        Route::post('/master_makanan/import-excel', [App\Http\Controllers\Backend\MasterMakananController::class, 'importExcel'])->name('master_makanan.import_excel');
+
+        Route::get('/{id}/edit', [MasterMakananController::class, 'edit'])->name('master_makanan.edit');
+        Route::put('/{id}', [MasterMakananController::class, 'update'])->name('master_makanan.update');
+        Route::get('/{id}', [MasterMakananController::class, 'show'])->name('master_makanan.show');
+        Route::delete('/{id}', [MasterMakananController::class, 'destroy'])->name('master_makanan.destroy');
     });
 
     // Data Peserta
