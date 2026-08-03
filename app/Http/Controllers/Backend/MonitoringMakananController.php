@@ -373,6 +373,81 @@ class MonitoringMakananController extends Controller
     }
 
     /**
+ * ==========================================================
+ * HALAMAN EVALUASI MONITORING
+ * ==========================================================
+ */
+public function evaluasi(Request $request, $peserta)
+{
+    // Cek hak akses peserta
+    if (auth()->user()->hasRole('Peserta') && auth()->user()->peserta_id != $peserta) {
+        abort(403, 'Akses Ditolak');
+    }
+
+    $peserta = Peserta::with([
+        'jenisPenyakit',
+        'dokter'
+    ])->findOrFail($peserta);
+
+    $query = MonitoringMakanan::with([
+        'detail',
+        'petugas'
+    ])
+    ->where('peserta_id', $peserta->id)
+    ->orderByDesc('tanggal');
+
+    /*
+    |--------------------------------------------------------------------------
+    | FILTER
+    |--------------------------------------------------------------------------
+    */
+
+    if (
+        $request->filled('dari') &&
+        $request->filled('sampai')
+    ) {
+
+        $query->whereBetween('tanggal', [
+            $request->dari,
+            $request->sampai
+        ]);
+
+    } else {
+
+        $jumlah = $request->jumlah ?? 3;
+
+        $query->take($jumlah);
+    }
+
+    $monitoring = $query->get();
+
+    /*
+    |--------------------------------------------------------------------------
+    | RINGKASAN
+    |--------------------------------------------------------------------------
+    */
+
+    $ringkasan = [
+        'jumlah_monitoring' => $monitoring->count(),
+        'total_kalori'      => $monitoring->sum('total_kalori'),
+        'rata_kalori'       => $monitoring->count()
+                                ? round($monitoring->avg('total_kalori'))
+                                : 0,
+        'kalori_tertinggi'  => $monitoring->max('total_kalori'),
+        'kalori_terendah'   => $monitoring->min('total_kalori'),
+    ];
+
+    return view(
+        'backend.monitoring_makanan.evaluasi',
+        compact(
+            'peserta',
+            'monitoring',
+            'ringkasan'
+        )
+    );
+}
+
+    /**
      * API Autocomplete Pencarian Makanan di Form Input (Interaktif)
      */
     public function searchMasterMakanan(Request $request)

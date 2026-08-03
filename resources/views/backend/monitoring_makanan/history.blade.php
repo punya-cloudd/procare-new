@@ -80,6 +80,75 @@
                             </table>
                         </div>
                     </div>
+                    <div class="card border-0 shadow-sm mb-4">
+                        <div class="card-header bg-primary text-white">
+                            <h5 class="mb-0">
+                                <i class="fas fa-chart-line me-2"></i>
+                                Evaluasi Monitoring Makanan
+                            </h5>
+                        </div>
+
+                        <div class="card-body">
+
+                            <form action="{{ route('monitoring_makanan.evaluasi', $peserta->id) }}" method="GET">
+
+                                <div class="row">
+
+                                    <div class="col-md-3">
+                                        <label class="form-label fw-bold">
+                                            Jumlah Monitoring
+                                        </label>
+
+                                        <input type="number" class="form-control" name="jumlah" value="3"
+                                            min="1" required>
+                                    </div>
+
+                                    <div class="col-md-3 d-flex align-items-end">
+
+                                        <div class="form-check">
+
+                                            <input class="form-check-input" type="checkbox" id="gunakanTanggal">
+
+                                            <label class="form-check-label" for="gunakanTanggal">
+
+                                                Gunakan Rentang Tanggal
+
+                                            </label>
+
+                                        </div>
+
+                                    </div>
+
+                                    <div class="col-md-2">
+                                        <label>Dari</label>
+
+                                        <input type="date" class="form-control tanggal" name="dari" disabled>
+                                    </div>
+
+                                    <div class="col-md-2">
+                                        <label>Sampai</label>
+
+                                        <input type="date" class="form-control tanggal" name="sampai" disabled>
+                                    </div>
+
+                                    <div class="col-md-2 d-flex align-items-end">
+
+                                        <button class="btn btn-success w-100">
+
+                                            <i class="fas fa-chart-bar me-1"></i>
+
+                                            Analisis
+
+                                        </button>
+
+                                    </div>
+
+                                </div>
+
+                            </form>
+
+                        </div>
+                    </div>
                     <div class="d-flex justify-content-between align-items-center mb-3">
                         <h5 class="mb-0">
                             <i class="fa fa-history text-primary me-2"></i>Riwayat Monitoring
@@ -234,5 +303,21 @@
                 });
             });
         });
+
+        $('#gunakanTanggal').change(function () {
+
+    if ($(this).is(':checked')) {
+
+        $('.tanggal').prop('disabled', false);
+
+    } else {
+
+        $('.tanggal').prop('disabled', true);
+
+        $('.tanggal').val('');
+
+    }
+
+});
     </script>
 @endsection
