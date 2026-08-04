@@ -921,4 +921,104 @@ class MonitoringMakananController extends Controller
 
         return round($target);
     }
+
+    // EXPORT PDF EVALUASI
+    public function exportEvaluasiPdf(Request $request, $peserta)
+    {
+        if (auth()->user()->hasRole('Peserta') && auth()->user()->peserta_id != $peserta) {
+            abort(403, 'Akses Ditolak');
+        }
+
+        $peserta = Peserta::with([
+            'jenisPenyakit',
+            'dokter'
+        ])->findOrFail($peserta);
+
+        $query = MonitoringMakanan::with([
+            'detail',
+            'petugas'
+        ])
+            ->where('peserta_id', $peserta->id)
+            ->orderByDesc('tanggal');
+
+        if (
+            $request->filled('dari') &&
+            $request->filled('sampai')
+        ) {
+
+            $query->whereBetween('tanggal', [
+                $request->dari,
+                $request->sampai
+            ]);
+        } else {
+
+            $jumlah = $request->jumlah ?? 3;
+
+            $query->take($jumlah);
+        }
+
+        $monitoring = $query->get();
+        $targetKalori = $this->hitungKebutuhanKalori($peserta->id);
+
+        $jumlahSesuai = 0;
+        $jumlahKurang = 0;
+        $jumlahLebih  = 0;
+
+        foreach ($monitoring as $item) {
+
+            $status = $this->getStatusKaloriPersonal(
+                $item->total_kalori,
+                $peserta->id
+            );
+
+            $item->status_kalori = $status;
+
+            if ($status['badge'] == 'success') {
+                $jumlahSesuai++;
+            } elseif ($status['badge'] == 'warning') {
+                $jumlahKurang++;
+            } else {
+                $jumlahLebih++;
+            }
+
+            $item->persentase = $targetKalori > 0
+                ? round(($item->total_kalori / $targetKalori) * 100)
+                : 0;
+        }
+
+        $ringkasan = [
+            'jumlah_monitoring' => $monitoring->count(),
+            'target_kalori'     => $targetKalori,
+            'total_kalori'      => $monitoring->sum('total_kalori'),
+            'rata_kalori'       => $monitoring->count()
+                ? round($monitoring->avg('total_kalori'))
+                : 0,
+            'kalori_tertinggi'  => $monitoring->max('total_kalori'),
+            'kalori_terendah'   => $monitoring->min('total_kalori'),
+            'jumlah_sesuai'     => $jumlahSesuai,
+            'jumlah_kurang'     => $jumlahKurang,
+            'jumlah_lebih'      => $jumlahLebih,
+        ];
+
+        $pdf = Pdf::loadView(
+            'backend.monitoring_makanan.evaluasi_pdf',
+            compact(
+                'peserta',
+                'monitoring',
+                'ringkasan'
+            )
+        );
+
+        $pdf->setPaper('A4', 'portrait');
+
+        return $pdf->download(
+            'Evaluasi_Monitoring_Makanan_' .
+                str_replace(' ', '_', $peserta->nama) .
+                '.pdf'
+        );
+    }
+
+    // EXPORT EXCEL EVALUASI
+
+    public function exportEvaluasiExcel(Request $request, $peserta) {}
 }

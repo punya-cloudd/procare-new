@@ -49,20 +49,16 @@
                                     </span>
                                 </div>
                             </div>
-
                             {{-- EVALUASI ASUPAN ENERGI (GRID FIX: 4 Kolom x 3 Grid = 12) --}}
                             <h5 class="fw-bold mb-3 text-secondary">
                                 <i class="fa fa-chart-pie me-1"></i> Evaluasi Asupan Energi Harian
                             </h5>
-
                             @php
                                 $totalAsupan = $monitoring->total_kalori ?? 0;
                                 $targetKalori = $kebutuhanKalori ?? 0;
                                 $persen = $persenKalori ?? 0;
-
                                 // Selisih kalori
                                 $selisih = $totalAsupan - $targetKalori;
-
                                 if ($persen < 90) {
                                     $statusBadge = 'bg-warning text-dark';
                                     $statusText = 'Kalori Kurang';
@@ -182,7 +178,6 @@
                                     <i class="fa fa-list me-1"></i> Rincian Konsumsi Makanan
                                 </h5>
                             </div>
-
                             <div class="table-responsive rounded border mb-4">
                                 <table class="table table-hover align-middle mb-0">
                                     <thead class="table-light">

@@ -153,13 +153,13 @@ Route::prefix('backend')->middleware(['auth'])->group(function () {
         Route::get('/history/{peserta}', [MonitoringMakananController::class, 'history'])->name('monitoring_makanan.history');
         Route::get('/{id}', [MonitoringMakananController::class, 'show'])->name('monitoring_makanan.show');
         Route::delete('/{id}', [MonitoringMakananController::class, 'destroy'])->name('monitoring_makanan.destroy');
-        Route::get(
-    '/monitoring-makanan/{peserta}/evaluasi',
-    [MonitoringMakananController::class, 'evaluasi']
-)->name('monitoring_makanan.evaluasi');
+        Route::get('/monitoring-makanan/{peserta}/evaluasi', [MonitoringMakananController::class, 'evaluasi'])->name('monitoring_makanan.evaluasi');
         Route::get('monitoring-makanan/{id}/export-pdf', [MonitoringMakananController::class, 'exportPdf'])->name('monitoring_makanan.export.pdf');
-
         Route::get('monitoring-makanan/{id}/export-excel', [MonitoringMakananController::class, 'exportExcel'])->name('monitoring_makanan.export.excel');
+
+        // Export Evaluasi
+        Route::get('/evaluasi/{peserta}/export-pdf', [MonitoringMakananController::class, 'exportEvaluasiPdf'])->name('monitoring_makanan.evaluasi.pdf');
+        Route::get('/evaluasi/{peserta}/export-excel', [MonitoringMakananController::class, 'exportEvaluasiExcel'])->name('monitoring_makanan.evaluasi.excel');
     });
 
     // Data Monitoring AKtivitas
@@ -186,8 +186,6 @@ Route::prefix('backend')->middleware(['auth'])->group(function () {
         Route::get('/{id}', [PasienController::class, 'show'])->name('pasien.show');
         Route::delete('/{id}', [PasienController::class, 'destroy'])->name('pasien.destroy');
     });
-
-
 
     // Profile
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.index');
