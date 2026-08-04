@@ -61,7 +61,7 @@ class Pemeriksaan extends Model
         'catatan_dokter',
         'catatan_gizi',
         'aktivitas_fisik',
-        
+
         'dokumen',
 
         'risk_score',
@@ -114,5 +114,77 @@ class Pemeriksaan extends Model
     public function updatedBy()
     {
         return $this->belongsTo(User::class, 'updated_by');
+    }
+    public function getKategoriImtAttribute()
+    {
+        if (!$this->bmi) {
+            return '-';
+        }
+
+        if ($this->bmi < 18.5) {
+            return 'Berat Badan Kurang';
+        }
+
+        if ($this->bmi < 23) {
+            return 'Normal';
+        }
+
+        if ($this->bmi < 25) {
+            return 'Berisiko Overweight';
+        }
+
+        if ($this->bmi < 30) {
+            return 'Obesitas I';
+        }
+
+        return 'Obesitas II';
+    }
+
+    public function getBadgeImtAttribute()
+    {
+        if (!$this->bmi) {
+            return 'secondary';
+        }
+
+        if ($this->bmi < 18.5) {
+            return 'warning text-dark';
+        }
+
+        if ($this->bmi < 23) {
+            return 'success';
+        }
+
+        if ($this->bmi < 25) {
+            return 'info';
+        }
+
+        if ($this->bmi < 30) {
+            return 'warning text-dark';
+        }
+
+        return 'danger';
+    }
+
+    public function getTargetKaloriAttribute()
+    {
+        if (!$this->berat_badan) {
+            return null;
+        }
+
+        // Program penurunan berat badan
+        if ($this->bmi >= 25) {
+            return round($this->berat_badan * 25);
+        }
+
+        return round($this->berat_badan * 30);
+    }
+
+    public function getTargetTurunBbAttribute()
+    {
+        if ($this->bmi < 25) {
+            return null;
+        }
+
+        return '0.5 - 1 kg/minggu';
     }
 }

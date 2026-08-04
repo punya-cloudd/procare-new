@@ -19,6 +19,9 @@ use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Border;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
 
+use App\Models\Pemeriksaan;
+use Carbon\Carbon;
+
 class MonitoringMakananController extends Controller
 {
     /**
@@ -67,27 +70,70 @@ class MonitoringMakananController extends Controller
                         : '-';
                 })
                 ->addColumn('kalori', function ($row) {
+
                     $last = MonitoringMakanan::where('peserta_id', $row->id)
                         ->latest('tanggal')
                         ->first();
+
                     if (!$last) {
                         return '-';
                     }
-                    
-                    $badgeClass = $this->getBadgeKalori($last->total_kalori);
+
+                    $status = $this->getStatusKaloriPersonal(
+                        $last->total_kalori,
+                        $row->id
+                    );
 
                     return '
-                        <span class="badge bg-' . $badgeClass . '">
-                            ' . number_format($last->total_kalori, 0) . ' Kkal
-                        </span>
+                        <div class="text-center">
+                            <span class="badge bg-' . $status['badge'] . '">
+                                ' . number_format($last->total_kalori, 0) . ' Kkal
+                            </span>
+                            <br>
+                            <small class="text-muted">
+                                ' . $status['persen'] . '%
+                            </small>
+                            <br>
+                            <small>
+                                ' . $status['label'] . '
+                            </small>
+                        </div>
                     ';
                 })
+
+                ->addColumn('status', function ($row) {
+
+                    $last = MonitoringMakanan::where('peserta_id', $row->id)
+                        ->latest('tanggal')
+                        ->first();
+
+                    if (!$last) {
+                        return '<span class="badge bg-secondary">Belum Ada Data</span>';
+                    }
+
+                    $status = $this->getStatusKaloriPersonal(
+                        $last->total_kalori,
+                        $row->id
+                    );
+
+                    $color = match ($status['badge']) {
+                        'success' => 'bg-success',
+                        'warning' => 'bg-warning text-dark',
+                        'danger' => 'bg-danger',
+                        default => 'bg-secondary'
+                    };
+
+                    return '<span class="badge ' . $color . '">' . $status['label'] . '</span>';
+                })
+
                 ->addColumn('petugas', function ($row) {
                     $last = MonitoringMakanan::with('petugas')
                         ->where('peserta_id', $row->id)
                         ->latest('tanggal')
                         ->first();
-                    return $last->petugas->nama ?? 'Mandiri (Pasien)';
+                    return $last->petugas
+                        ? '<span class="badge bg-primary">' . e($last->petugas->nama) . '</span>'
+                        : '<span class="badge bg-secondary">Mandiri (Pasien)</span>';
                 })
                 ->addColumn('action', function ($row) {
                     return '
@@ -109,7 +155,7 @@ class MonitoringMakananController extends Controller
                     </div>
                     ';
                 })
-                ->rawColumns(['nama', 'kalori', 'action'])
+                ->rawColumns(['nama', 'petugas', 'kalori', 'status', 'action'])
                 ->make(true);
         }
 
@@ -203,7 +249,6 @@ class MonitoringMakananController extends Controller
             return redirect()
                 ->route('monitoring_makanan.index')
                 ->with('success', 'Catatan monitoring makanan berhasil disimpan!');
-
         } catch (\Exception $e) {
             DB::rollBack();
 
@@ -224,11 +269,69 @@ class MonitoringMakananController extends Controller
             'detail'
         ])->findOrFail($id);
 
-        if (auth()->user()->hasRole('Peserta') && $monitoring->peserta_id != auth()->user()->peserta_id) {
+        if (
+            auth()->user()->hasRole('Peserta')
+            && $monitoring->peserta_id != auth()->user()->peserta_id
+        ) {
             abort(403, 'Akses Ditolak');
         }
 
-        return view('backend.monitoring_makanan.show', compact('monitoring'));
+        $kebutuhanKalori = $this->hitungKebutuhanKalori(
+            $monitoring->peserta_id
+        );
+
+        $persenKalori = $kebutuhanKalori > 0
+            ? round(($monitoring->total_kalori / $kebutuhanKalori) * 100)
+            : 0;
+
+        $selisihKalori = $monitoring->total_kalori - $kebutuhanKalori;
+
+        $saranNutrisi = $this->getSaranNutrisi(
+            $monitoring->peserta_id,
+            $monitoring->total_kalori
+        );
+
+        // PEMERIKSAAN TERAKHIR
+        $pemeriksaanTerakhir = Pemeriksaan::where(
+            'peserta_id',
+            $monitoring->peserta_id
+        )
+            ->orderByDesc('tanggal')
+            ->first();
+
+        if ($pemeriksaanTerakhir) {
+
+            $imt = $pemeriksaanTerakhir->bmi;
+
+            if ($imt < 18.5) {
+                $pemeriksaanTerakhir->kategori_imt = 'Berat Badan Kurang';
+                $pemeriksaanTerakhir->badge_imt = 'warning text-dark';
+            } elseif ($imt < 23) {
+                $pemeriksaanTerakhir->kategori_imt = 'Normal';
+                $pemeriksaanTerakhir->badge_imt = 'success';
+            } elseif ($imt < 25) {
+                $pemeriksaanTerakhir->kategori_imt = 'Berisiko Overweight';
+                $pemeriksaanTerakhir->badge_imt = 'info';
+            } elseif ($imt < 30) {
+                $pemeriksaanTerakhir->kategori_imt = 'Obesitas I';
+                $pemeriksaanTerakhir->badge_imt = 'warning text-dark';
+            } else {
+                $pemeriksaanTerakhir->kategori_imt = 'Obesitas II';
+                $pemeriksaanTerakhir->badge_imt = 'danger';
+            }
+        }
+
+        return view(
+            'backend.monitoring_makanan.show',
+            compact(
+                'monitoring',
+                'kebutuhanKalori',
+                'persenKalori',
+                'pemeriksaanTerakhir',
+                'saranNutrisi',
+                'selisihKalori'
+            )
+        );
     }
 
     /**
@@ -327,7 +430,6 @@ class MonitoringMakananController extends Controller
             return redirect()
                 ->route('monitoring_makanan.index')
                 ->with('success', 'Monitoring makanan berhasil diperbarui.');
-
         } catch (\Exception $e) {
             DB::rollBack();
 
@@ -373,79 +475,128 @@ class MonitoringMakananController extends Controller
     }
 
     /**
- * ==========================================================
- * HALAMAN EVALUASI MONITORING
- * ==========================================================
- */
-public function evaluasi(Request $request, $peserta)
-{
-    // Cek hak akses peserta
-    if (auth()->user()->hasRole('Peserta') && auth()->user()->peserta_id != $peserta) {
-        abort(403, 'Akses Ditolak');
-    }
+     * ==========================================================
+     * HALAMAN EVALUASI MONITORING
+     * ==========================================================
+     */
+    public function evaluasi(Request $request, $peserta)
+    {
+        // Cek hak akses peserta
+        if (auth()->user()->hasRole('Peserta') && auth()->user()->peserta_id != $peserta) {
+            abort(403, 'Akses Ditolak');
+        }
 
-    $peserta = Peserta::with([
-        'jenisPenyakit',
-        'dokter'
-    ])->findOrFail($peserta);
+        $peserta = Peserta::with([
+            'jenisPenyakit',
+            'dokter'
+        ])->findOrFail($peserta);
 
-    $query = MonitoringMakanan::with([
-        'detail',
-        'petugas'
-    ])
-    ->where('peserta_id', $peserta->id)
-    ->orderByDesc('tanggal');
+        $query = MonitoringMakanan::with([
+            'detail',
+            'petugas'
+        ])
+            ->where('peserta_id', $peserta->id)
+            ->orderByDesc('tanggal');
 
-    /*
+        /*
     |--------------------------------------------------------------------------
     | FILTER
     |--------------------------------------------------------------------------
     */
 
-    if (
-        $request->filled('dari') &&
-        $request->filled('sampai')
-    ) {
+        if (
+            $request->filled('dari') &&
+            $request->filled('sampai')
+        ) {
 
-        $query->whereBetween('tanggal', [
-            $request->dari,
-            $request->sampai
-        ]);
+            $query->whereBetween('tanggal', [
+                $request->dari,
+                $request->sampai
+            ]);
+        } else {
 
-    } else {
+            $jumlah = $request->jumlah ?? 3;
 
-        $jumlah = $request->jumlah ?? 3;
+            $query->take($jumlah);
+        }
 
-        $query->take($jumlah);
-    }
+        $monitoring = $query->get();
 
-    $monitoring = $query->get();
+        $targetKalori = $this->hitungKebutuhanKalori($peserta->id);
 
-    /*
+        $jumlahSesuai = 0;
+        $jumlahKurang = 0;
+        $jumlahLebih  = 0;
+
+        foreach ($monitoring as $item) {
+
+            $status = $this->getStatusKaloriPersonal(
+                $item->total_kalori,
+                $peserta->id
+            );
+
+            $item->status_kalori = $status;
+
+            if ($status['badge'] == 'success') {
+
+                $jumlahSesuai++;
+            } elseif ($status['badge'] == 'warning') {
+
+                $jumlahKurang++;
+            } else {
+
+                $jumlahLebih++;
+            }
+
+            $item->persentase = $targetKalori > 0
+                ? round(($item->total_kalori / $targetKalori) * 100)
+                : 0;
+        }
+
+        /*
     |--------------------------------------------------------------------------
     | RINGKASAN
     |--------------------------------------------------------------------------
     */
 
-    $ringkasan = [
-        'jumlah_monitoring' => $monitoring->count(),
-        'total_kalori'      => $monitoring->sum('total_kalori'),
-        'rata_kalori'       => $monitoring->count()
-                                ? round($monitoring->avg('total_kalori'))
-                                : 0,
-        'kalori_tertinggi'  => $monitoring->max('total_kalori'),
-        'kalori_terendah'   => $monitoring->min('total_kalori'),
-    ];
+        $ringkasan = [
 
-    return view(
-        'backend.monitoring_makanan.evaluasi',
-        compact(
-            'peserta',
-            'monitoring',
-            'ringkasan'
-        )
-    );
-}
+            'jumlah_monitoring' => $monitoring->count(),
+
+            'target_kalori' => $targetKalori,
+
+            'total_kalori' => $monitoring->sum('total_kalori'),
+
+            'rata_kalori' => $monitoring->count()
+                ? round($monitoring->avg('total_kalori'))
+                : 0,
+
+            'kalori_tertinggi' => $monitoring->max('total_kalori'),
+
+            'kalori_terendah' => $monitoring->min('total_kalori'),
+
+            'jumlah_sesuai' => $jumlahSesuai,
+
+            'jumlah_kurang' => $jumlahKurang,
+
+            'jumlah_lebih' => $jumlahLebih,
+
+        ];
+
+        $pemeriksaan = Pemeriksaan::where('peserta_id', $peserta->id)
+            ->latest('tanggal')
+            ->first();
+
+        return view(
+            'backend.monitoring_makanan.evaluasi',
+            compact(
+                'peserta',
+                'monitoring',
+                'ringkasan',
+                'pemeriksaan'
+            )
+        );
+    }
 
     /**
      * API Autocomplete Pencarian Makanan di Form Input (Interaktif)
@@ -459,9 +610,9 @@ public function evaluasi(Request $request, $peserta)
         }
 
         $data = MasterMakanan::where('aktif', 1)
-            ->where(function($query) use ($q) {
+            ->where(function ($query) use ($q) {
                 $query->where('nama', 'like', "%{$q}%")
-                      ->orWhere('kategori', 'like', "%{$q}%");
+                    ->orWhere('kategori', 'like', "%{$q}%");
             })
             ->limit(15)
             ->get(['id', 'nama', 'kategori', 'satuan', 'gram', 'kalori']);
@@ -654,5 +805,120 @@ public function evaluasi(Request $request, $peserta)
             return 'warning text-dark';
         }
         return 'success';
+    }
+
+    private function getStatusKaloriPersonal($asupan, $pesertaId)
+    {
+        $kebutuhan = $this->hitungKebutuhanKalori($pesertaId);
+
+        if ($kebutuhan <= 0) {
+            return [
+                'badge' => 'secondary',
+                'label' => 'Belum ada data antropometri',
+                'persen' => 0
+            ];
+        }
+
+        $persen = round(($asupan / $kebutuhan) * 100);
+
+        if ($persen < 90) {
+
+            return [
+                'badge' => 'warning',
+                'label' => 'Asupan Kurang',
+                'persen' => $persen
+            ];
+        }
+
+        if ($persen <= 110) {
+
+            return [
+                'badge' => 'success',
+                'label' => 'Sesuai Target Diet',
+                'persen' => $persen
+            ];
+        }
+
+        if ($persen <= 130) {
+
+            return [
+                'badge' => 'danger',
+                'label' => 'Melebihi Target',
+                'persen' => $persen
+            ];
+        }
+
+        return [
+            'badge' => 'danger',
+            'label' => 'Sangat Melebihi Target',
+            'persen' => $persen
+        ];
+    }
+
+    private function getSaranNutrisi($pesertaId, $asupan)
+    {
+        $target = $this->hitungKebutuhanKalori($pesertaId);
+
+        if ($target == 0) {
+            return "Lengkapi data antropometri terlebih dahulu.";
+        }
+
+        if ($asupan > $target + 300) {
+
+            return "Kurangi asupan sekitar "
+                . round($asupan - $target)
+                . " kkal/hari. Hindari minuman manis, gorengan, makanan tinggi gula dan lemak.";
+        }
+
+        if ($asupan < $target - 300) {
+
+            return "Tambahkan sekitar "
+                . round($target - $asupan)
+                . " kkal/hari dari sumber protein tanpa lemak, buah dan karbohidrat kompleks.";
+        }
+
+        return "Asupan sudah sesuai target. Pertahankan pola makan dan aktivitas fisik.";
+    }
+
+    private function hitungKebutuhanKalori($pesertaId)
+    {
+        $pemeriksaan = Pemeriksaan::where('peserta_id', $pesertaId)
+            ->latest('tanggal')
+            ->first();
+
+        $peserta = Peserta::find($pesertaId);
+
+        if (
+            !$pemeriksaan ||
+            !$peserta ||
+            !$pemeriksaan->berat_badan ||
+            !$pemeriksaan->tinggi_badan ||
+            !$peserta->tgl_lahir
+        ) {
+            return 0;
+        }
+
+        $bb = $pemeriksaan->berat_badan;
+        $tb = $pemeriksaan->tinggi_badan;
+        $umur = Carbon::parse($peserta->tgl_lahir)->age;
+
+        // L = Laki-laki
+        if ($peserta->jk == 'L') {
+            $bmr = (10 * $bb) + (6.25 * $tb) - (5 * $umur) + 5;
+        } else {
+            $bmr = (10 * $bb) + (6.25 * $tb) - (5 * $umur) - 161;
+        }
+
+        // Aktivitas ringan
+        $tdee = $bmr * 1.3;
+
+        // Jika overweight/obesitas → defisit kalori
+        if ($pemeriksaan->bmi >= 25) {
+            $target = $tdee - 500;
+        } else {
+            $target = $tdee;
+        }
+
+        return round($target);
     }
 }

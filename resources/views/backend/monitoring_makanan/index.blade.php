@@ -2,51 +2,58 @@
 @section('title', 'Monitoring Makanan Harian')
 
 @section('content')
-    <div class="container">
-        <div class="page-inner">
-            <div class="card">
-                <div class="card-header">
-                    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
-                        <h4 class="card-title mb-0">Monitoring Makanan Harian</h4>
-                        <a href="{{ route('monitoring_makanan.create') }}" class="btn btn-primary btn-sm">
-                            <i class="fa fa-plus"></i> Tambah Monitoring
-                        </a>
-                    </div>
+<div class="container">
+    <div class="page-inner">
+        <div class="card shadow-sm border-0">
+            <div class="card-header bg-white border-bottom py-3">
+                <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+                    <h4 class="card-title mb-0 fw-bold text-primary">
+                        <i class="fa fa-utensils me-2"></i>Monitoring Makanan Harian
+                    </h4>
+                    <a href="{{ route('monitoring_makanan.create') }}" class="btn btn-primary btn-sm">
+                        <i class="fa fa-plus me-1"></i> Tambah Monitoring
+                    </a>
                 </div>
-                <div class="card-body">
-                    @if (session('success'))
-                        <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-                        <script>
-                            document.addEventListener('DOMContentLoaded', function() {
-                                Swal.fire({
-                                    title: 'Berhasil!',
-                                    text: {!! json_encode(session('success')) !!},
-                                    icon: 'success'
-                                });
-                            });
-                        </script>
-                    @endif
-                    <div class="table-responsive">
-                        <table id="table" class="table table-bordered table-hover w-100">
-                            <thead class="table-light">
-                                <tr>
-                                    <th width="50">No</th>
-                                    <th>Nama Peserta</th>
-                                    <th>Jumlah Menu Terakhir</th>
-                                    <th>Total Kalori Terakhir</th>
-                                    <th>Petugas</th>
-                                    <th width="120">Aksi</th>
-                                </tr>
-                            </thead>
-                        </table>
-                    </div>
+            </div>
+
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table id="table" class="table table-striped table-hover align-middle w-100">
+                        <thead class="table-light">
+                            <tr>
+                                <th width="40" class="text-center">No</th>
+                                <th>Nama Peserta</th>
+                                <th class="text-center">Petugas</th>
+                                <th class="text-center">Monitoring Terakhir</th>
+                                <th class="text-center">Asupan Hari Ini</th>
+                                <th class="text-center">Status</th>
+                                <th width="100" class="text-center">Aksi</th>
+                            </tr>
+                        </thead>
+                    </table>
                 </div>
             </div>
         </div>
     </div>
+</div>
 @endsection
 
 @section('script')
+    {{-- SweetAlert Flash Message Handling --}}
+    @if (session('success'))
+        <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                Swal.fire({
+                    title: 'Berhasil!',
+                    text: "{{ session('success') }}",
+                    icon: 'success',
+                    timer: 3000,
+                    showConfirmButton: false
+                });
+            });
+        </script>
+    @endif
+
     <script>
         $(function() {
             let table = $('#table').DataTable({
@@ -54,60 +61,95 @@
                 serverSide: true,
                 responsive: true,
                 autoWidth: false,
-
                 ajax: {
                     url: "{{ route('monitoring_makanan.index') }}"
                 },
-                order: [
-                    [1, 'asc']
-                ],
-                columns: [{
+                order: [[3, 'desc']], // Default sorting berdasarkan 'Monitoring Terakhir' terbaru
+                columns: [
+                    {
                         data: 'DT_RowIndex',
                         name: 'DT_RowIndex',
                         searchable: false,
+                        orderable: false,
+                        className: 'text-center'
+                    },
+                    {
+                        data: 'nama',
+                        name: 'peserta.nama'
+                    },
+                    {
+                        data: 'petugas',
+                        name: 'petugas',
+                        className: 'text-center'
+                    },
+                    {
+                        data: 'terakhir',
+                        name: 'updated_at',
+                        className: 'text-center'
+                    },
+                    {
+                        data: 'kalori',
+                        name: 'kalori',
+                        className: 'text-center',
+                        searchable: false,
                         orderable: false
                     },
-                    { data: 'nama', name: 'peserta.nama'},
-                    { data: 'jumlah', name: 'jumlah', className: 'text-center', searchable: false, orderable: false, render: function(data) {return `<span class="badge bg-info">${data} Menu</span>`;}},
-                    { data: 'kalori', name: 'kalori', className: 'text-center', render: function(data) {return `${data} Kkal`;}},
-                    { data: 'petugas', name: 'petugas.nama'},
-                    { data: 'action', name: 'action', searchable: false, orderable: false, className: 'text-center'}
+                    {
+                        data: 'status',
+                        name: 'status',
+                        className: 'text-center',
+                        searchable: false,
+                        orderable: false
+                    },
+                    {
+                        data: 'action',
+                        name: 'action',
+                        searchable: false,
+                        orderable: false,
+                        className: 'text-center'
+                    }
                 ]
             });
-            // HAPUS DATA
-            $('#table').on('click', '.btn-delete', function() {
+
+            // PROCESS HAPUS DATA
+            $('#table').on('click', '.btn-delete', function(e) {
+                e.preventDefault();
                 let id = $(this).data('id');
+
                 Swal.fire({
-                    title: 'Yakin?',
-                    text: 'Data monitoring akan dihapus!',
+                    title: 'Apakah Anda Yakin?',
+                    text: "Data monitoring ini akan dihapus secara permanen!",
                     icon: 'warning',
                     showCancelButton: true,
                     confirmButtonColor: '#d33',
-                    cancelButtonColor: '#3085d6',
-                    confirmButtonText: 'Ya, Hapus',
-                    cancelButtonText: 'Batal'
+                    cancelButtonColor: '#6c757d',
+                    confirmButtonText: '<i class="fa fa-trash me-1"></i> Ya, Hapus!',
+                    cancelButtonText: 'Batal',
+                    reverseButtons: true
                 }).then((result) => {
                     if (result.isConfirmed) {
                         $.ajax({
-                            url: "{{ route('monitoring_makanan.destroy', ':id') }}"
-                                .replace(':id', id),
+                            url: "{{ route('monitoring_makanan.destroy', ':id') }}".replace(':id', id),
                             type: 'POST',
                             data: {
                                 _method: 'DELETE',
                                 _token: "{{ csrf_token() }}"
                             },
-                            success: function() {
-                                Swal.fire(
-                                    'Berhasil',
-                                    'Data berhasil dihapus.',
-                                    'success'
-                                );
-                                table.ajax.reload();
+                            success: function(response) {
+                                Swal.fire({
+                                    title: 'Terhapus!',
+                                    text: response.message || 'Data berhasil dihapus.',
+                                    icon: 'success',
+                                    timer: 2000,
+                                    showConfirmButton: false
+                                });
+                                table.ajax.reload(null, false); // Keep pagination status
                             },
-                            error: function() {
+                            error: function(xhr) {
+                                let errorMsg = xhr.responseJSON?.message || 'Terjadi kesalahan sistem saat menghapus data.';
                                 Swal.fire(
-                                    'Gagal',
-                                    'Terjadi kesalahan.',
+                                    'Gagal!',
+                                    errorMsg,
                                     'error'
                                 );
                             }
