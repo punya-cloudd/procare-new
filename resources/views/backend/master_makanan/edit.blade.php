@@ -83,6 +83,7 @@
                                             'Cangkir',
                                             'Bungkus',
                                             'Buah',
+                                            'Botol',
                                             'Gram'
                                         ] as $satuan)
 

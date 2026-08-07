@@ -192,6 +192,7 @@
                     <option value="Cangkir" ${satuan == 'Cangkir' ? 'selected' : ''}>Cangkir</option>
                     <option value="Bungkus" ${satuan == 'Bungkus' ? 'selected' : ''}>Bungkus</option>
                     <option value="Buah" ${satuan == 'Buah' ? 'selected' : ''}>Buah</option>
+                    <option value="Botol" ${satuan == 'Botol' ? 'selected' : ''}>Botol</option>
                     <option value="Gram" ${satuan == 'Gram' || !satuan ? 'selected' : ''}>Gram</option>
                 </select>
             </td>
